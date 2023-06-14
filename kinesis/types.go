@@ -6,7 +6,7 @@ import (
 
 type CreateStreamInput struct {
 	StreamName string
-	ShardCount int32
+	ShardCount int64
 }
 
 type CreateStreamOutput struct{}

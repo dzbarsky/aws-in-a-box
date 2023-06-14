@@ -14,14 +14,18 @@ var (
 	uint128Max = big.NewInt(0).SetBytes([]byte{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255})
 )
 
+func i64toA(i int64) string {
+	return strconv.FormatInt(i, 10)
+}
+
 type Shard struct {
 	Id string
 
 	StartingHashKey big.Int
 	EndingHashKey   big.Int
 
-	StartingSequenceNumber int
-	EndingSequenceNumber   int
+	StartingSequenceNumber int64
+	EndingSequenceNumber   int64
 
 	Records []APIRecord
 }
@@ -51,11 +55,13 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (CreateStreamOutput, err
 
 	var stream Stream
 
-	step := big.NewInt(0).Div(uint128Max, big.NewInt(int64(input.ShardCount)))
-	for i := int32(0); i < input.ShardCount; i++ {
+	sequenceNumber := time.Now().UnixNano()
+
+	step := big.NewInt(0).Div(uint128Max, big.NewInt(input.ShardCount))
+	for i := int64(0); i < input.ShardCount; i++ {
 		var start, end big.Int
 
-		start.Mul(big.NewInt(int64(i)), step)
+		start.Mul(big.NewInt(i), step)
 		end.Add(&start, step).Sub(&end, big.NewInt(1))
 		if i == input.ShardCount-1 {
 			end = *uint128Max
@@ -63,12 +69,11 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (CreateStreamOutput, err
 
 		stream.Shards = append(stream.Shards, &Shard{
 			// HACKY NAME??
-			Id:              input.StreamName + "@" + strconv.Itoa(int(i)),
+			Id:              input.StreamName + "@" + i64toA(i),
 			StartingHashKey: start,
 			EndingHashKey:   end,
-			// TODO? Not legit but seems to match the specs
-			StartingSequenceNumber: 1,
-			EndingSequenceNumber:   1,
+			StartingSequenceNumber: sequenceNumber,
+			EndingSequenceNumber:   sequenceNumber,
 		})
 	}
 
@@ -97,17 +102,18 @@ func (k *Kinesis) PutRecord(input PutRecordInput) (PutRecordOutput, error) {
 
 	for _, shard := range stream.Shards {
 		if hashKey.Cmp(&shard.EndingHashKey) <= 0 && hashKey.Cmp(&shard.StartingHashKey) >= 0 {
-			shard.EndingSequenceNumber += 1
+			timestamp := time.Now().UnixNano()
 			shard.Records = append(shard.Records, APIRecord{
-				ApproximateArrivalTimestamp: time.Now().UnixNano(),
+				ApproximateArrivalTimestamp: timestamp,
 				Data:                        input.Data,
 				PartitionKey:                input.PartitionKey,
-				SequenceNumber:              strconv.Itoa(shard.EndingSequenceNumber),
+				SequenceNumber:              i64toA(timestamp),
 			})
+			return PutRecordOutput{}, nil
 		}
 	}
 
-	return PutRecordOutput{}, nil
+	panic("Could not find shard for record?")
 }
 
 func (k *Kinesis) lockedGetShard(streamName, shardId string) (*Shard, error) {
@@ -208,8 +214,8 @@ func (k *Kinesis) ListShards(input ListShardsInput) (ListShardsOutput, error) {
 				EndingHashKey:   shard.EndingHashKey.String(),
 			},
 			SequenceNumberRange: APISequenceNumberRange{
-				StartingSequenceNumber: strconv.Itoa(shard.StartingSequenceNumber),
-				EndingSequenceNumber:   strconv.Itoa(shard.EndingSequenceNumber),
+				StartingSequenceNumber: i64toA(shard.StartingSequenceNumber),
+				EndingSequenceNumber:   i64toA(shard.EndingSequenceNumber),
 			},
 		})
 	}

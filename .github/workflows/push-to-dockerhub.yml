@@ -26,5 +26,5 @@ jobs:
         with:
           push: true
           tags: |
-            dzbarsky:latest
-            dzbarsky:${{ github.sha }}
+            dzbarsky/aws-in-a-box:latest
+            dzbarsky/aws-in-a-box:${{ github.sha }}

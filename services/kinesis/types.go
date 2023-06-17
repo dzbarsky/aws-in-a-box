@@ -1,9 +1,5 @@
 package kinesis
 
-import (
-	"encoding/json"
-)
-
 type CreateStreamInput struct {
 	StreamName string
 	ShardCount int64
@@ -17,9 +13,6 @@ type PutRecordInput struct {
 	Data         string
 
 	ExplicitHashKey string
-
-	// TODO: generalize, doesn't even work
-	UnknownFields map[string]json.RawMessage `json:"-"`
 }
 
 type PutRecordOutput struct{}

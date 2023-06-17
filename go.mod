@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/fxamacker/cbor/v2 v2.4.0
+	github.com/gofrs/uuid/v5 v5.0.0
 	golang.org/x/net v0.10.0
 )
 

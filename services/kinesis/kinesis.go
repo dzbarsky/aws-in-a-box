@@ -45,6 +45,7 @@ func New() *Kinesis {
 	}
 }
 
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_CreateStream.html
 func (k *Kinesis) CreateStream(input CreateStreamInput) (CreateStreamOutput, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -81,6 +82,7 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (CreateStreamOutput, err
 	return CreateStreamOutput{}, nil
 }
 
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecord.html
 func (k *Kinesis) PutRecord(input PutRecordInput) (PutRecordOutput, error) {
 	fmt.Println("PutRecord", input.StreamName)
 
@@ -131,6 +133,7 @@ func (k *Kinesis) lockedGetShard(streamName, shardId string) (*Shard, error) {
 	return nil, fmt.Errorf("Shard does not exist")
 }
 
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_GetRecords.html
 func (k *Kinesis) GetRecords(input GetRecordsInput) (GetRecordsOutput, error) {
 	fmt.Println("GetRecords", input.ShardIterator)
 
@@ -163,6 +166,7 @@ func (k *Kinesis) GetRecords(input GetRecordsInput) (GetRecordsOutput, error) {
 	return output, nil
 }
 
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_GetShardIterator.html
 func (k *Kinesis) GetShardIterator(input GetShardIteratorInput) (GetShardIteratorOutput, error) {
 	fmt.Println("GetShardIterator", input.StreamName, input)
 
@@ -192,6 +196,7 @@ func (k *Kinesis) GetShardIterator(input GetShardIteratorInput) (GetShardIterato
 	return output, nil
 }
 
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_ListShards.html
 func (k *Kinesis) ListShards(input ListShardsInput) (ListShardsOutput, error) {
 	fmt.Println("ListShards", input.StreamName)
 

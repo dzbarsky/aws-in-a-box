@@ -14,17 +14,22 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"aws-in-a-box/services/kinesis"
+	"aws-in-a-box/services/kms"
 )
 
 func main() {
-	kinesisPort := flag.Int("kinesisPort", -1, "Enable Kinesis service")
+	port := flag.Int("port", 0, "Enable Kinesis service")
+
+	enableKinesis := flag.Bool("enableKinesis", true, "Enable Kinesis service")
 	kinesisInitialStreams := flag.String("kinesisInitialStreams", "", "Streams to create at startup. Example: stream1,stream2,stream3")
+
+	enableKMS := flag.Bool("enableKMS", true, "Enable Kinesis service")
 
 	flag.Parse()
 
 	methodRegistry := make(map[string]http.HandlerFunc)
 
-	if *kinesisPort != -1 {
+	if *enableKinesis {
 		k := kinesis.New()
 		for _, name := range strings.Split(*kinesisInitialStreams, ",") {
 			k.CreateStream(kinesis.CreateStreamInput{
@@ -34,10 +39,15 @@ func main() {
 		}
 		k.RegisterHTTPHandlers(methodRegistry)
 	}
-	addr := ":" + strconv.Itoa(*kinesisPort)
+
+	if *enableKMS {
+		k := kms.New()
+		k.RegisterHTTPHandlers(methodRegistry)
+	}
+
+	addr := ":" + strconv.Itoa(*port)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		buf, err := io.ReadAll(r.Body)
 		if err != nil {
 			log.Print("bodyErr ", err.Error())

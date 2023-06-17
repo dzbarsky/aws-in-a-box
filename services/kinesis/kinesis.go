@@ -69,9 +69,9 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (CreateStreamOutput, err
 
 		stream.Shards = append(stream.Shards, &Shard{
 			// HACKY NAME??
-			Id:              input.StreamName + "@" + i64toA(i),
-			StartingHashKey: start,
-			EndingHashKey:   end,
+			Id:                     input.StreamName + "@" + i64toA(i),
+			StartingHashKey:        start,
+			EndingHashKey:          end,
 			StartingSequenceNumber: sequenceNumber,
 			EndingSequenceNumber:   sequenceNumber,
 		})

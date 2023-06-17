@@ -12,7 +12,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
-	"aws-in-a-box/kinesis"
+	"aws-in-a-box/services/kinesis"
 )
 
 func main() {

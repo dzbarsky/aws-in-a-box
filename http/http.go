@@ -1,4 +1,4 @@
-package kinesis
+package http
 
 import (
 	"bytes"
@@ -12,8 +12,6 @@ import (
 )
 
 const (
-	service = "Kinesis_20131202"
-
 	jsonContentType = "application/x-amz-json-1.1"
 	cborContentType = "application/x-amz-cbor-1.1"
 )
@@ -53,8 +51,28 @@ func strictUnmarshal(r io.Reader, contentType string, target any) error {
 	return nil
 }
 
-func register[Input any, Output any](
+func marshalOutput(output any, err error, contentType string) []byte {
+	if err != nil {
+		// TODO: correct error handling
+		panic(err)
+	}
+	var data []byte
+	if contentType == jsonContentType {
+		data, err = json.Marshal(output)
+	} else {
+		data, err = cbor.Marshal(output)
+	}
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
+type Registry = map[string]http.HandlerFunc
+
+func Register[Input any, Output any](
 	registry map[string]http.HandlerFunc,
+	service string,
 	method string,
 	handler func(input Input) (Output, error),
 ) {
@@ -69,28 +87,7 @@ func register[Input any, Output any](
 		}
 
 		output, err := handler(input)
-		if err != nil {
-			panic(err)
-		}
-
-		var data []byte
-		if contentType == jsonContentType {
-			data, err = json.Marshal(output)
-		} else {
-			data, err = cbor.Marshal(output)
-		}
-		if err != nil {
-			panic(err)
-		}
-
+		data := marshalOutput(output, err, contentType)
 		w.Write(data)
 	}
-}
-
-func (k *Kinesis) RegisterHTTPHandlers(methodRegistry map[string]http.HandlerFunc) {
-	register(methodRegistry, "CreateStream", k.CreateStream)
-	register(methodRegistry, "PutRecord", k.PutRecord)
-	register(methodRegistry, "ListShards", k.ListShards)
-	register(methodRegistry, "GetShardIterator", k.GetShardIterator)
-	register(methodRegistry, "GetRecords", k.GetRecords)
 }

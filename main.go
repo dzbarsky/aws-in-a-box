@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -17,6 +18,7 @@ import (
 
 func main() {
 	kinesisPort := flag.Int("kinesisPort", -1, "Enable Kinesis service")
+	kinesisInitialStreams := flag.String("kinesisInitialStreams", "", "Streams to create at startup. Example: stream1,stream2,stream3")
 
 	flag.Parse()
 
@@ -24,7 +26,7 @@ func main() {
 
 	if *kinesisPort != -1 {
 		k := kinesis.New()
-		for _, name := range []string{"some_stream"} {
+		for _, name := range strings.Split(*kinesisInitialStreams, ",") {
 			k.CreateStream(kinesis.CreateStreamInput{
 				StreamName: name,
 				ShardCount: 20,

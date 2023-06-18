@@ -2,6 +2,7 @@ package kms
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -92,7 +93,7 @@ func TestGenerateDataKey(t *testing.T) {
 	}
 }
 
-func TestAliases(t *testing.T) {
+func TestAliasCreateDelete(t *testing.T) {
 	k, keyId := newKMSWithKey()
 
 	output, err := k.ListAliases(ListAliasesInput{})
@@ -104,7 +105,7 @@ func TestAliases(t *testing.T) {
 	}
 
 	_, err = k.CreateAlias(CreateAliasInput{
-		AliasName:   "short",
+		AliasName:   "alias/short",
 		TargetKeyId: keyId,
 	})
 	if err != nil {
@@ -120,7 +121,7 @@ func TestAliases(t *testing.T) {
 			t.Fatal(output.Aliases)
 		}
 		alias := output.Aliases[0]
-		if alias.AliasName != "short" {
+		if alias.AliasName != "alias/short" {
 			t.Fatal(alias.AliasName)
 		}
 		if alias.TargetKeyId != keyId {
@@ -141,7 +142,7 @@ func TestAliases(t *testing.T) {
 	}
 
 	_, err = k.DeleteAlias(DeleteAliasInput{
-		AliasName: "short",
+		AliasName: "alias/short",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -156,9 +157,61 @@ func TestAliases(t *testing.T) {
 	}
 
 	_, err = k.DeleteAlias(DeleteAliasInput{
-		AliasName: "short",
+		AliasName: "alias/short",
 	})
 	if err == nil {
 		t.Fatal("Cannot delete missing alias")
+	}
+}
+
+func TestAliasNaming(t *testing.T) {
+	k, keyId := newKMSWithKey()
+
+	_, err := k.CreateAlias(CreateAliasInput{
+		AliasName:   "short",
+		TargetKeyId: keyId,
+	})
+	if err == nil {
+		t.Fatal("Illegal alias name")
+	}
+
+	_, err = k.CreateAlias(CreateAliasInput{
+		AliasName:   "alias/short",
+		TargetKeyId: keyId,
+	})
+	if err != nil {
+		t.Fatal("Legal alias name")
+	}
+
+	_, err = k.CreateAlias(CreateAliasInput{
+		AliasName:   "alias/aws",
+		TargetKeyId: keyId,
+	})
+	if err != nil {
+		t.Fatal("Legal alias name")
+	}
+
+	_, err = k.CreateAlias(CreateAliasInput{
+		AliasName:   "alias/aws/short",
+		TargetKeyId: keyId,
+	})
+	if err == nil {
+		t.Fatal("Reserved alias name")
+	}
+
+	_, err = k.CreateAlias(CreateAliasInput{
+		AliasName:   "alias/short" + strings.Repeat("long", 100),
+		TargetKeyId: keyId,
+	})
+	if err == nil {
+		t.Fatal("Long alias name")
+	}
+
+	_, err = k.CreateAlias(CreateAliasInput{
+		AliasName:   "alias/short$",
+		TargetKeyId: keyId,
+	})
+	if err == nil {
+		t.Fatal("Bad character, illegal alias name")
 	}
 }

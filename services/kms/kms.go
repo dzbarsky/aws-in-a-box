@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -107,7 +108,7 @@ func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
 func (k *KMS) lockedGetKey(keyId string) (*KeyWithMetadata, error) {
 	if strings.HasPrefix(keyId, "alias/") {
 		var ok bool
-		keyId, ok = k.aliases[keyId[6:]]
+		keyId, ok = k.aliases[keyId]
 		if !ok {
 			return nil, errors.New("NotFoundException")
 		}
@@ -124,9 +125,27 @@ func (k *KMS) lockedGetKey(keyId string) (*KeyWithMetadata, error) {
 	return key, nil
 }
 
+var aliasNameRe = regexp.MustCompile("^[a-zA-Z0-9/_-]+$")
+
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateAlias.html
 func (k *KMS) CreateAlias(input CreateAliasInput) (CreateAliasOutput, error) {
 	var output CreateAliasOutput
+
+	if !strings.HasPrefix(input.AliasName, "alias/") {
+		return output, errors.New("InvalidAliasNameException")
+	}
+
+	if strings.HasPrefix(input.AliasName, "alias/aws/") {
+		return output, errors.New("InvalidAliasNameException")
+	}
+
+	if len(input.AliasName) > 256 {
+		return output, errors.New("InvalidAliasNameException")
+	}
+
+	if !aliasNameRe.MatchString(input.AliasName) {
+		return output, errors.New("InvalidAliasNameException")
+	}
 
 	k.mu.Lock()
 	defer k.mu.Unlock()

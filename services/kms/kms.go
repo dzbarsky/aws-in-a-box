@@ -33,18 +33,34 @@ func (k *KeyWithMetadata) Encrypt(
 	return append(packedBlob, ciphertext...), nil
 }
 
+type ServiceData struct {
+	Region       string
+	AWSAccountId string
+}
+
 type KMS struct {
+	serviceData ServiceData
+
 	mu sync.Mutex
 
 	aliases map[string]KeyId
 	keys    map[KeyId]*KeyWithMetadata
 }
 
-func New() *KMS {
+func New(serviceData ServiceData) *KMS {
 	return &KMS{
-		aliases: make(map[string]KeyId),
-		keys:    make(map[KeyId]*KeyWithMetadata),
+		serviceData: serviceData,
+		aliases:     make(map[string]KeyId),
+		keys:        make(map[KeyId]*KeyWithMetadata),
 	}
+}
+
+func (k *KMS) arnPrefix() string {
+	return "arn:aws:kms:" + k.serviceData.Region + ":" + k.serviceData.AWSAccountId + ":"
+}
+
+func (k *KMS) arnFromKeyId(keyId string) string {
+	return k.arnPrefix() + "key/" + keyId
 }
 
 func keyIdFromArn(arn string) KeyId {
@@ -82,6 +98,7 @@ func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
 	}
 	return CreateKeyOutput{
 		KeyMetadata: APIKeyMetadata{
+			Arn:   k.arnFromKeyId(keyId),
 			KeyId: keyId,
 		},
 	}, nil
@@ -154,6 +171,7 @@ func (k *KMS) ListAliases(input ListAliasesInput) (ListAliasesOutput, error) {
 		if input.KeyId == "" || input.KeyId == target {
 			output.Aliases = append(output.Aliases, APIAliasListEntry{
 				AliasName:   alias,
+				AliasArn:    k.arnFromKeyId(target),
 				TargetKeyId: target,
 			})
 		}
@@ -193,7 +211,7 @@ func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (GenerateDataKeyOutput
 		return output, err
 	}
 
-	// TODO: check for AES key when we have non-AES suppot
+	// TODO: check for AES key when we have non-AES support
 	encryptedDataKey, err := key.Encrypt(dataKey, input.EncryptionContext)
 	if err != nil {
 		return output, err

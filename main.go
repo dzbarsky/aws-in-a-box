@@ -41,7 +41,11 @@ func main() {
 	}
 
 	if *enableKMS {
-		k := kms.New()
+		k := kms.New(kms.ServiceData{
+			// TODO: make these configurable?
+			AWSAccountId: "12345",
+			Region:       "us-east-1",
+		})
 		k.RegisterHTTPHandlers(methodRegistry)
 	}
 

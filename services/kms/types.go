@@ -88,3 +88,15 @@ type APIKeyMetadata struct {
 	Arn   string
 	KeyId string
 }
+
+type DisableKeyInput struct {
+	KeyId string
+}
+
+type DisableKeyOutput struct{}
+
+type EnableKeyInput struct {
+	KeyId string
+}
+
+type EnableKeyOutput struct{}

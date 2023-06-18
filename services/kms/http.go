@@ -13,4 +13,6 @@ func (k *KMS) RegisterHTTPHandlers(methodRegistry http.Registry) {
 	http.Register(methodRegistry, service, "GenerateDataKeyWithoutPlaintext", k.GenerateDataKeyWithoutPlaintext)
 	http.Register(methodRegistry, service, "Encrypt", k.Encrypt)
 	http.Register(methodRegistry, service, "Decrypt", k.Decrypt)
+	http.Register(methodRegistry, service, "DisableKey", k.DisableKey)
+	http.Register(methodRegistry, service, "EnableKey", k.EnableKey)
 }

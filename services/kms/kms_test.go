@@ -215,3 +215,64 @@ func TestAliasNaming(t *testing.T) {
 		t.Fatal("Bad character, illegal alias name")
 	}
 }
+
+func TestEnableDisableKey(t *testing.T) {
+	k, keyId := newKMSWithKey()
+
+	plaintext := []byte("The quick brown fox jumps over the lazy dog")
+	encryptOutput, err := k.Encrypt(EncryptInput{
+		KeyId:     keyId,
+		Plaintext: plaintext,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ciphertext := encryptOutput.CiphertextBlob
+
+	_, err = k.DisableKey(DisableKeyInput{
+		KeyId: keyId,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = k.Encrypt(EncryptInput{
+		KeyId:     keyId,
+		Plaintext: plaintext,
+	})
+	if err == nil {
+		t.Fatal("Should not allow")
+	}
+
+	_, err = k.Decrypt(DecryptInput{
+		KeyId:          keyId,
+		CiphertextBlob: ciphertext,
+	})
+	if err == nil {
+		t.Fatal("Should not allow")
+	}
+
+	_, err = k.GenerateDataKeyWithoutPlaintext(GenerateDataKeyWithoutPlaintextInput{
+		KeyId:         keyId,
+		NumberOfBytes: 256,
+	})
+
+	_, err = k.EnableKey(EnableKeyInput{
+		KeyId: keyId,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decryptOutput, err := k.Decrypt(DecryptInput{
+		KeyId:          keyId,
+		CiphertextBlob: ciphertext,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(plaintext, decryptOutput.Plaintext) {
+		t.Fatalf("bad encryption result; got %v, want %v", decryptOutput.Plaintext, plaintext)
+	}
+}

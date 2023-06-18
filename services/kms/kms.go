@@ -14,7 +14,9 @@ import (
 type KeyId = string
 
 type KeyWithMetadata struct {
-	Id  KeyId
+	Id       KeyId
+	Disabled bool
+
 	Key *AESKey
 }
 
@@ -114,7 +116,7 @@ func (k *KMS) lockedGetKey(keyId string) (*KeyWithMetadata, error) {
 		}
 	}
 
-	if strings.HasPrefix(keyId, "arn") {
+	if strings.HasPrefix(keyId, "arn:") {
 		keyId = keyIdFromArn(keyId)
 	}
 
@@ -230,6 +232,10 @@ func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (GenerateDataKeyOutput
 		return output, err
 	}
 
+	if key.Disabled {
+		return output, errors.New("DisabledException")
+	}
+
 	// TODO: check for AES key when we have non-AES support
 	encryptedDataKey, err := key.Encrypt(dataKey, input.EncryptionContext)
 	if err != nil {
@@ -261,17 +267,21 @@ func (k *KMS) Encrypt(input EncryptInput) (EncryptOutput, error) {
 
 	var output EncryptOutput
 
-	key, err := k.lockedGetKey(input.KeyId)
-	if err != nil {
-		return output, err
-	}
-
 	if len(input.Plaintext) == 0 || len(input.Plaintext) > 4096 {
 		return output, errors.New("bad length")
 	}
 
 	if input.EncryptionAlgorithm == "" {
 		input.EncryptionAlgorithm = "SYMMETRIC_DEFAULT"
+	}
+
+	key, err := k.lockedGetKey(input.KeyId)
+	if err != nil {
+		return output, err
+	}
+
+	if key.Disabled {
+		return output, errors.New("DisabledException")
 	}
 
 	ciphertext, err := key.Encrypt(input.Plaintext, input.EncryptionContext)
@@ -310,6 +320,10 @@ func (k *KMS) Decrypt(input DecryptInput) (DecryptOutput, error) {
 		return DecryptOutput{}, err
 	}
 
+	if key.Disabled {
+		return DecryptOutput{}, errors.New("DisabledException")
+	}
+
 	plaintext, err := key.Key.Decrypt(data, version, input.EncryptionContext)
 	if err != nil {
 		return DecryptOutput{}, err
@@ -320,4 +334,32 @@ func (k *KMS) Decrypt(input DecryptInput) (DecryptOutput, error) {
 		EncryptionAlgorithm: input.EncryptionAlgorithm,
 		KeyId:               key.Id,
 	}, nil
+}
+
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_DisableKey.html
+func (k *KMS) DisableKey(input DisableKeyInput) (DisableKeyOutput, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	key, err := k.lockedGetKey(input.KeyId)
+	if err != nil {
+		return DisableKeyOutput{}, err
+	}
+
+	key.Disabled = true
+	return DisableKeyOutput{}, nil
+}
+
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_EnableKey.html
+func (k *KMS) EnableKey(input EnableKeyInput) (EnableKeyOutput, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	key, err := k.lockedGetKey(input.KeyId)
+	if err != nil {
+		return EnableKeyOutput{}, err
+	}
+
+	key.Disabled = false
+	return EnableKeyOutput{}, nil
 }

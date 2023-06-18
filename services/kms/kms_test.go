@@ -65,3 +65,26 @@ func TestEncryptionContext(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateDataKey(t *testing.T) {
+	k, keyId := newKMSWithKey()
+
+	generateOutput, err := k.GenerateDataKey(GenerateDataKeyInput{
+		NumberOfBytes: 256,
+		KeyId:         keyId,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decryptOutput, err := k.Decrypt(DecryptInput{
+		CiphertextBlob: generateOutput.CiphertextBlob,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(generateOutput.Plaintext, generateOutput.Plaintext) {
+		t.Fatalf("bad encryption result; got %v, want %v", decryptOutput.Plaintext, generateOutput.Plaintext)
+	}
+}

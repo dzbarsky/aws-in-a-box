@@ -80,7 +80,11 @@ func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
 		Id:  keyId,
 		Key: key,
 	}
-	return output, nil
+	return CreateKeyOutput{
+		KeyMetadata: APIKeyMetadata{
+			KeyId: keyId,
+		},
+	}, nil
 }
 
 func (k *KMS) lockedGetKey(keyId string) (*KeyWithMetadata, error) {

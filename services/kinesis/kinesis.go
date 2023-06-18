@@ -32,6 +32,7 @@ type Shard struct {
 
 type Stream struct {
 	Shards []*Shard
+	Tags   map[string]string
 }
 
 type Kinesis struct {
@@ -54,7 +55,13 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (CreateStreamOutput, err
 		return CreateStreamOutput{}, fmt.Errorf("Stream already exists")
 	}
 
-	var stream Stream
+	stream := &Stream{
+		Tags: make(map[string]string),
+	}
+
+	for tagName, tagValue := range input.Tags {
+		stream.Tags[tagName] = tagValue
+	}
 
 	sequenceNumber := time.Now().UnixNano()
 
@@ -78,7 +85,7 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (CreateStreamOutput, err
 		})
 	}
 
-	k.streams[input.StreamName] = &stream
+	k.streams[input.StreamName] = stream
 	return CreateStreamOutput{}, nil
 }
 
@@ -225,6 +232,62 @@ func (k *Kinesis) ListShards(input ListShardsInput) (ListShardsOutput, error) {
 		})
 	}
 	return out, nil
+}
+
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_AddTagsToStream.html
+func (k *Kinesis) AddTagsToStream(input AddTagsToStreamInput) (AddTagsToStreamOutput, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	stream, ok := k.streams[input.StreamName]
+	if !ok {
+		return AddTagsToStreamOutput{}, fmt.Errorf("Stream does not exist")
+	}
+
+	for tagName, tagValue := range input.Tags {
+		stream.Tags[tagName] = tagValue
+	}
+
+	return AddTagsToStreamOutput{}, nil
+}
+
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_RemoveTagsFromStream.html
+func (k *Kinesis) RemoveTagsFromStream(input RemoveTagsFromStreamInput) (RemoveTagsFromStreamOutput, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	stream, ok := k.streams[input.StreamName]
+	if !ok {
+		return RemoveTagsFromStreamOutput{}, fmt.Errorf("Stream does not exist")
+	}
+
+	for _, tagName := range input.TagKeys {
+		delete(stream.Tags, tagName)
+	}
+
+	return RemoveTagsFromStreamOutput{}, nil
+}
+
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_ListTagsForStream.html
+func (k *Kinesis) ListTagsForStream(input ListTagsForStreamInput) (ListTagsForStreamOutput, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	var output ListTagsForStreamOutput
+
+	stream, ok := k.streams[input.StreamName]
+	if !ok {
+		return output, fmt.Errorf("Stream does not exist")
+	}
+
+	for tagName, tagValue := range stream.Tags {
+		output.Tags = append(output.Tags, APITag{
+			Key:   tagName,
+			Value: tagValue,
+		})
+	}
+
+	return output, nil
 }
 
 // These are complete HAX, they probably need to be more legit

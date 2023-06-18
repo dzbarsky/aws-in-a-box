@@ -3,6 +3,7 @@ package kinesis
 type CreateStreamInput struct {
 	StreamName string
 	ShardCount int64
+	Tags       map[string]string
 }
 
 type CreateStreamOutput struct{}
@@ -71,4 +72,33 @@ type APIRecord struct {
 	Data                        string
 	PartitionKey                string
 	SequenceNumber              string
+}
+
+type AddTagsToStreamInput struct {
+	//StreamARN string
+	StreamName string
+	Tags       map[string]string
+}
+
+type AddTagsToStreamOutput struct{}
+
+type RemoveTagsFromStreamInput struct {
+	//StreamARN string
+	StreamName string
+	TagKeys    []string
+}
+
+type RemoveTagsFromStreamOutput struct{}
+
+type ListTagsForStreamInput struct {
+	StreamName string
+}
+
+type ListTagsForStreamOutput struct {
+	Tags []APITag
+}
+
+type APITag struct {
+	Key   string
+	Value string
 }

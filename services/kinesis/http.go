@@ -10,4 +10,7 @@ func (k *Kinesis) RegisterHTTPHandlers(methodRegistry http.Registry) {
 	http.Register(methodRegistry, service, "ListShards", k.ListShards)
 	http.Register(methodRegistry, service, "GetShardIterator", k.GetShardIterator)
 	http.Register(methodRegistry, service, "GetRecords", k.GetRecords)
+	http.Register(methodRegistry, service, "AddTagsToStream", k.AddTagsToStream)
+	http.Register(methodRegistry, service, "RemoveTagsFromStream", k.RemoveTagsFromStream)
+	http.Register(methodRegistry, service, "ListTagsForStream", k.ListTagsForStream)
 }

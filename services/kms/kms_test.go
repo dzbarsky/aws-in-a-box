@@ -256,6 +256,9 @@ func TestEnableDisableKey(t *testing.T) {
 		KeyId:         keyId,
 		NumberOfBytes: 256,
 	})
+	if err == nil {
+		t.Fatal("Should not allow")
+	}
 
 	_, err = k.EnableKey(EnableKeyInput{
 		KeyId: keyId,

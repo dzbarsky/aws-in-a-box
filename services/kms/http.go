@@ -15,4 +15,7 @@ func (k *KMS) RegisterHTTPHandlers(methodRegistry http.Registry) {
 	http.Register(methodRegistry, service, "Decrypt", k.Decrypt)
 	http.Register(methodRegistry, service, "DisableKey", k.DisableKey)
 	http.Register(methodRegistry, service, "EnableKey", k.EnableKey)
+	http.Register(methodRegistry, service, "TagResource", k.TagResource)
+	http.Register(methodRegistry, service, "UntagResource", k.UntagResource)
+	http.Register(methodRegistry, service, "ListResourceTags", k.ListResourceTags)
 }

@@ -16,6 +16,7 @@ type KeyId = string
 type KeyWithMetadata struct {
 	Id       KeyId
 	Disabled bool
+	Tags     map[string]string
 
 	Key *AESKey
 }
@@ -79,11 +80,11 @@ func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
 
 	keyId := uuid.Must(uuid.NewV4()).String()
 
-	var key *AESKey
+	var aesKey *AESKey
 
 	switch input.KeySpec {
 	case "", "SYMMETRIC_DEFAULT":
-		key = newAesKey()
+		aesKey = newAesKey()
 	case "HMAC_224", "HMAC_256", "HMAC_384", "HMAC_512":
 		return output, errors.New("UnsupportedOperationException")
 	case "RSA_2048", "RSA_3072", "RSA_4096":
@@ -95,10 +96,20 @@ func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
 		return output, errors.New("UnsupportedOperationException")
 	}
 
-	k.keys[keyId] = &KeyWithMetadata{
+	key := &KeyWithMetadata{
 		Id:  keyId,
-		Key: key,
+		Key: aesKey,
 	}
+
+	for _, t := range input.Tags {
+		if !isValidTagKey(t.TagKey) || !isValidTagValue(t.TagValue) {
+			return output, errors.New("TagException")
+		}
+		key.Tags[t.TagKey] = t.TagValue
+	}
+
+	k.keys[keyId] = key
+
 	return CreateKeyOutput{
 		KeyMetadata: APIKeyMetadata{
 			Arn:   k.arnFromKeyId(keyId),
@@ -362,4 +373,103 @@ func (k *KMS) EnableKey(input EnableKeyInput) (EnableKeyOutput, error) {
 
 	key.Disabled = false
 	return EnableKeyOutput{}, nil
+}
+
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_TagResource.html
+func (k *KMS) TagResource(input TagResourceInput) (TagResourceOutput, error) {
+	if strings.HasPrefix(input.KeyId, "alias/") {
+		return TagResourceOutput{}, errors.New("Cannot tag alias")
+	}
+
+	for _, t := range input.Tags {
+		if !isValidTagKey(t.TagKey) || !isValidTagValue(t.TagValue) {
+			return TagResourceOutput{}, errors.New("TagException")
+		}
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	key, err := k.lockedGetKey(input.KeyId)
+	if err != nil {
+		return TagResourceOutput{}, err
+	}
+
+	for _, t := range input.Tags {
+		key.Tags[t.TagKey] = t.TagValue
+	}
+
+	return TagResourceOutput{}, nil
+}
+
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_UntagResource.html
+func (k *KMS) UntagResource(input UntagResourceInput) (UntagResourceOutput, error) {
+	if strings.HasPrefix(input.KeyId, "alias/") {
+		return UntagResourceOutput{}, errors.New("Cannot tag alias")
+	}
+
+	for _, tagKey := range input.Tags {
+		if !isValidTagKey(tagKey) {
+			return UntagResourceOutput{}, errors.New("TagException")
+		}
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	key, err := k.lockedGetKey(input.KeyId)
+	if err != nil {
+		return UntagResourceOutput{}, err
+	}
+
+	for _, tag := range input.Tags {
+		delete(key.Tags, tag)
+	}
+
+	return UntagResourceOutput{}, nil
+}
+
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_ListResourceTags.html
+func (k *KMS) ListResourceTags(input ListResourceTagsInput) (ListResourceTagsOutput, error) {
+	var output ListResourceTagsOutput
+	if strings.HasPrefix(input.KeyId, "alias/") {
+		return output, errors.New("Cannot tag alias")
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	key, err := k.lockedGetKey(input.KeyId)
+	if err != nil {
+		return output, err
+	}
+
+	for tagKey, tagValue := range key.Tags {
+		output.Tags = append(output.Tags, APITag{
+			TagKey:   tagKey,
+			TagValue: tagValue,
+		})
+	}
+
+	return output, nil
+}
+
+func isValidTagKey(tagKey string) bool {
+	if strings.HasPrefix(tagKey, "aws:") {
+		return false
+	}
+
+	if len(tagKey) == 0 || len(tagKey) > 128 {
+		return false
+	}
+
+	return true
+}
+
+func isValidTagValue(tagValue string) bool {
+	if len(tagValue) == 0 || len(tagValue) > 256 {
+		return false
+	}
+
+	return true
 }

@@ -2,6 +2,7 @@ package kms
 
 type CreateKeyInput struct {
 	KeySpec string
+	Tags    []APITag
 }
 
 type CreateKeyOutput struct {
@@ -100,3 +101,30 @@ type EnableKeyInput struct {
 }
 
 type EnableKeyOutput struct{}
+
+type TagResourceInput struct {
+	KeyId string
+	Tags  []APITag
+}
+
+type APITag struct {
+	TagKey   string
+	TagValue string
+}
+
+type TagResourceOutput struct{}
+
+type UntagResourceInput struct {
+	KeyId string
+	Tags  []string
+}
+
+type UntagResourceOutput struct{}
+
+type ListResourceTagsInput struct {
+	KeyId string
+}
+
+type ListResourceTagsOutput struct {
+	Tags []APITag
+}

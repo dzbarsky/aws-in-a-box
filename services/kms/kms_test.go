@@ -128,8 +128,7 @@ func TestAliasCreateDelete(t *testing.T) {
 		if alias.TargetKeyId != keyId {
 			t.Fatal(alias.TargetKeyId)
 		}
-		// TODO(zbarsky): fix ARN handling
-		if alias.AliasArn != "arn:aws:kms:us-east-1:12345:key/"+keyId {
+		if alias.AliasArn != "arn:aws:kms:us-east-1:12345:alias/short" {
 			t.Fatal(alias.AliasArn)
 		}
 	}

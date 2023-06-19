@@ -8,6 +8,14 @@ type CreateStreamInput struct {
 
 type CreateStreamOutput struct{}
 
+type DeleteStreamInput struct {
+	// EnforceConsumerDeletion bool TODO
+	StreamName string
+	StreamARN  string
+}
+
+type DeleteStreamOutput struct{}
+
 type PutRecordInput struct {
 	PartitionKey string
 	StreamName   string

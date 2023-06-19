@@ -6,6 +6,7 @@ const service = "Kinesis_20131202"
 
 func (k *Kinesis) RegisterHTTPHandlers(methodRegistry http.Registry) {
 	http.Register(methodRegistry, service, "CreateStream", k.CreateStream)
+	http.Register(methodRegistry, service, "DeleteStream", k.DeleteStream)
 	http.Register(methodRegistry, service, "PutRecord", k.PutRecord)
 	http.Register(methodRegistry, service, "ListShards", k.ListShards)
 	http.Register(methodRegistry, service, "GetShardIterator", k.GetShardIterator)

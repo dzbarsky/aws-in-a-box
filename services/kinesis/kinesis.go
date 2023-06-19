@@ -94,6 +94,24 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (CreateStreamOutput, err
 	return CreateStreamOutput{}, nil
 }
 
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_DeleteStream.html
+func (k *Kinesis) DeleteStream(input DeleteStreamInput) (DeleteStreamOutput, error) {
+	streamName := input.StreamName
+	if streamName == "" {
+		streamName = arn.ExtractId(input.StreamARN)
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if _, ok := k.streams[streamName]; !ok {
+		return DeleteStreamOutput{}, fmt.Errorf("ResourceNotFoundException")
+	}
+
+	delete(k.streams, streamName)
+	return DeleteStreamOutput{}, nil
+}
+
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecord.html
 func (k *Kinesis) PutRecord(input PutRecordInput) (PutRecordOutput, error) {
 	streamName := input.StreamName
@@ -138,7 +156,7 @@ func (k *Kinesis) PutRecord(input PutRecordInput) (PutRecordOutput, error) {
 func (k *Kinesis) lockedGetShard(streamName, shardId string) (*Shard, error) {
 	stream, ok := k.streams[streamName]
 	if !ok {
-		return nil, fmt.Errorf("Stream does not exist")
+		return nil, fmt.Errorf("ResourceNotFoundException")
 	}
 
 	for _, shard := range stream.Shards {
@@ -232,7 +250,7 @@ func (k *Kinesis) ListShards(input ListShardsInput) (ListShardsOutput, error) {
 
 	stream, ok := k.streams[streamName]
 	if !ok {
-		return ListShardsOutput{}, fmt.Errorf("Stream does not exist")
+		return ListShardsOutput{}, fmt.Errorf("ResourceNotFoundException")
 	}
 
 	// TODO: do anything with the ShardFilter?
@@ -266,7 +284,7 @@ func (k *Kinesis) AddTagsToStream(input AddTagsToStreamInput) (AddTagsToStreamOu
 
 	stream, ok := k.streams[streamName]
 	if !ok {
-		return AddTagsToStreamOutput{}, fmt.Errorf("Stream does not exist")
+		return AddTagsToStreamOutput{}, fmt.Errorf("ResourceNotFoundException")
 	}
 
 	for tagName, tagValue := range input.Tags {
@@ -288,7 +306,7 @@ func (k *Kinesis) RemoveTagsFromStream(input RemoveTagsFromStreamInput) (RemoveT
 
 	stream, ok := k.streams[streamName]
 	if !ok {
-		return RemoveTagsFromStreamOutput{}, fmt.Errorf("Stream does not exist")
+		return RemoveTagsFromStreamOutput{}, fmt.Errorf("ResourceNotFoundException")
 	}
 
 	for _, tagName := range input.TagKeys {
@@ -312,7 +330,7 @@ func (k *Kinesis) ListTagsForStream(input ListTagsForStreamInput) (ListTagsForSt
 
 	stream, ok := k.streams[streamName]
 	if !ok {
-		return output, fmt.Errorf("Stream does not exist")
+		return output, fmt.Errorf("ResourceNotFoundException")
 	}
 
 	for tagName, tagValue := range stream.Tags {

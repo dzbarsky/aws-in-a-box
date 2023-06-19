@@ -55,10 +55,6 @@ func New(arnGenerator arn.Generator) *KMS {
 	}
 }
 
-func (k *KMS) arnFromKeyId(keyId string) string {
-	return k.arnGenerator.Generate("kms", "key", keyId)
-}
-
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateKey.html
 func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
 	k.mu.Lock()
@@ -100,7 +96,7 @@ func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
 
 	return CreateKeyOutput{
 		KeyMetadata: APIKeyMetadata{
-			Arn:   k.arnFromKeyId(keyId),
+			Arn:   k.arnGenerator.Generate("kms", "key", keyId),
 			KeyId: keyId,
 		},
 	}, nil
@@ -187,11 +183,10 @@ func (k *KMS) ListAliases(input ListAliasesInput) (ListAliasesOutput, error) {
 	defer k.mu.Unlock()
 
 	for alias, target := range k.aliases {
-		// TODO: handle ARN
 		if input.KeyId == "" || input.KeyId == target {
 			output.Aliases = append(output.Aliases, APIAliasListEntry{
 				AliasName:   alias,
-				AliasArn:    k.arnFromKeyId(target),
+				AliasArn:    k.arnGenerator.Generate("kms", "alias", strings.TrimPrefix(alias, "alias/")),
 				TargetKeyId: target,
 			})
 		}

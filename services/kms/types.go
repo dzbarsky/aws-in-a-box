@@ -128,3 +128,14 @@ type ListResourceTagsInput struct {
 type ListResourceTagsOutput struct {
 	Tags []APITag
 }
+
+type ListKeysInput struct{}
+
+type ListKeysOutput struct {
+	Keys []APIKey
+}
+
+type APIKey struct {
+	KeyArn string
+	KeyId  string
+}

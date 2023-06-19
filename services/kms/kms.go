@@ -452,6 +452,23 @@ func (k *KMS) ListResourceTags(input ListResourceTagsInput) (ListResourceTagsOut
 	return output, nil
 }
 
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_ListKeys.html
+func (k *KMS) ListKeys(input ListKeysInput) (ListKeysOutput, error) {
+	var output ListKeysOutput
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	for _, key := range k.keys {
+		output.Keys = append(output.Keys, APIKey{
+			KeyId:  key.Id,
+			KeyArn: k.arnGenerator.Generate("kms", "key", key.Id),
+		})
+	}
+
+	return output, nil
+}
+
 func isValidTagKey(tagKey string) bool {
 	if strings.HasPrefix(tagKey, "aws:") {
 		return false

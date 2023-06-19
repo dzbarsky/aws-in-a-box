@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gofrs/uuid/v5"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
@@ -67,6 +68,7 @@ func main() {
 		target := r.Header.Get("X-Amz-Target")
 		fmt.Println(r.Method, r.URL.String(), target) //, r.Body)
 
+		w.Header().Add("x-amzn-RequestId", uuid.Must(uuid.NewV4()).String())
 		method, ok := methodRegistry[target]
 		if !ok {
 			fmt.Println("NOT FOUND")

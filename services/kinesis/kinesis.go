@@ -140,13 +140,17 @@ func (k *Kinesis) PutRecord(input PutRecordInput) (PutRecordOutput, error) {
 	for _, shard := range stream.Shards {
 		if hashKey.Cmp(&shard.EndingHashKey) <= 0 && hashKey.Cmp(&shard.StartingHashKey) >= 0 {
 			timestamp := time.Now().UnixNano()
+			sequenceNumber := i64toA(timestamp)
 			shard.Records = append(shard.Records, APIRecord{
 				ApproximateArrivalTimestamp: timestamp,
 				Data:                        input.Data,
 				PartitionKey:                input.PartitionKey,
-				SequenceNumber:              i64toA(timestamp),
+				SequenceNumber:              sequenceNumber,
 			})
-			return PutRecordOutput{}, nil
+			return PutRecordOutput{
+				ShardId:        shard.Id,
+				SequenceNumber: sequenceNumber,
+			}, nil
 		}
 	}
 

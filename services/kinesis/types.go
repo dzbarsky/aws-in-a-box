@@ -25,7 +25,10 @@ type PutRecordInput struct {
 	ExplicitHashKey string
 }
 
-type PutRecordOutput struct{}
+type PutRecordOutput struct {
+	ShardId        string
+	SequenceNumber string
+}
 
 type GetShardIteratorInput struct {
 	ShardId                string

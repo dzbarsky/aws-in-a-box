@@ -2,7 +2,7 @@ package kms
 
 import "aws-in-a-box/http"
 
-const service = "TODO"
+const service = "TrentService"
 
 func (k *KMS) RegisterHTTPHandlers(methodRegistry http.Registry) {
 	http.Register(methodRegistry, service, "CreateKey", k.CreateKey)

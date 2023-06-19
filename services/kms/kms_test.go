@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func newKMSWithKey() (*KMS, string) {
+func newKMSWithKeyReturningARN() (*KMS, string, string) {
 	k := New(arn.Generator{
 		AwsAccountId: "12345",
 		Region:       "us-east-1",
@@ -17,7 +17,12 @@ func newKMSWithKey() (*KMS, string) {
 		panic(err)
 	}
 
-	return k, output.KeyMetadata.KeyId
+	return k, output.KeyMetadata.KeyId, output.KeyMetadata.Arn
+}
+
+func newKMSWithKey() (*KMS, string) {
+	k, keyId, _ := newKMSWithKeyReturningARN()
+	return k, keyId
 }
 
 func TestEncryptionContext(t *testing.T) {
@@ -277,5 +282,54 @@ func TestEnableDisableKey(t *testing.T) {
 
 	if !bytes.Equal(plaintext, decryptOutput.Plaintext) {
 		t.Fatalf("bad encryption result; got %v, want %v", decryptOutput.Plaintext, plaintext)
+	}
+}
+
+func TestEncryptDecrypt(t *testing.T) {
+	k, keyId, keyArn := newKMSWithKeyReturningARN()
+
+	aliasName := "alias/key"
+	_, err := k.CreateAlias(CreateAliasInput{
+		AliasName:   aliasName,
+		TargetKeyId: keyId,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	aliasesOutput, err := k.ListAliases(ListAliasesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keyIds := []string{keyId, keyArn, aliasName, aliasesOutput.Aliases[0].AliasArn}
+	for _, id := range keyIds {
+		plaintext := []byte("The quick brown fox jumps over the lazy dog")
+		context := map[string]string{"k1": "v1", "k2": "v2"}
+		encryptOutput, err := k.Encrypt(EncryptInput{
+			KeyId:             keyId,
+			EncryptionContext: context,
+			Plaintext:         plaintext,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ciphertext := encryptOutput.CiphertextBlob
+
+		decryptOutput, err := k.Decrypt(DecryptInput{
+			KeyId:             id,
+			CiphertextBlob:    ciphertext,
+			EncryptionContext: context,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(plaintext, decryptOutput.Plaintext) {
+			t.Fatalf("bad encryption result; got %v, want %v", decryptOutput.Plaintext, plaintext)
+		}
 	}
 }

@@ -17,7 +17,14 @@ func (g Generator) Generate(service string, resourceType string, resourceId stri
 	return fmt.Sprintf("arn:aws:%s:%s:%s:%s/%s", service, g.Region, g.AwsAccountId, resourceType, resourceId)
 }
 
-func ExtractId(arn string) string {
+// Returns the resource type and the resource ID
+func ExtractId(arn string) (string, string) {
 	// TODO: should we try to validate the ARN?
-	return strings.Split(arn, "/")[1]
+	parts := strings.Split(arn, ":")
+	idWithType := parts[len(parts)-1]
+	resourceType, id, found := strings.Cut(idWithType, "/")
+	if !found {
+		panic("Bogus arn? " + arn)
+	}
+	return resourceType, id
 }

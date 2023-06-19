@@ -43,6 +43,7 @@ type KMS struct {
 
 	mu sync.Mutex
 
+	// The keys here do not include the "alias/" prefix
 	aliases map[string]KeyId
 	keys    map[KeyId]*KeyWithMetadata
 }
@@ -103,16 +104,27 @@ func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
 }
 
 func (k *KMS) lockedGetKey(keyId string) (*KeyWithMetadata, error) {
-	if strings.HasPrefix(keyId, "alias/") {
+	// There are 4 possible ways to specify a key:
+	// - Key ID: 1234abcd-12ab-34cd-56ef-1234567890ab
+	// - Key ARN: arn:aws:kms:us-east-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
+	// - Alias name: alias/ExampleAlias
+	// - Alias ARN: arn:aws:kms:us-east-2:111122223333:alias/ExampleAlias
+
+	var isAlias bool
+	if strings.HasPrefix(keyId, "arn:") {
+		var resourceType string
+		resourceType, keyId = arn.ExtractId(keyId)
+		isAlias = resourceType == "alias"
+	} else if strings.HasPrefix(keyId, "alias/") {
+		_, keyId, isAlias = strings.Cut(keyId, "alias/")
+	}
+
+	if isAlias {
 		var ok bool
 		keyId, ok = k.aliases[keyId]
 		if !ok {
 			return nil, errors.New("NotFoundException")
 		}
-	}
-
-	if strings.HasPrefix(keyId, "arn:") {
-		keyId = arn.ExtractId(keyId)
 	}
 
 	key, ok := k.keys[keyId]
@@ -152,11 +164,12 @@ func (k *KMS) CreateAlias(input CreateAliasInput) (CreateAliasOutput, error) {
 		return output, err
 	}
 
-	if _, ok := k.aliases[input.AliasName]; ok {
+	aliasName := strings.TrimPrefix(input.AliasName, "alias/")
+	if _, ok := k.aliases[aliasName]; ok {
 		return output, errors.New("AlreadyExistsException")
 	}
 
-	k.aliases[input.AliasName] = key.Id
+	k.aliases[aliasName] = key.Id
 	return output, nil
 }
 
@@ -167,11 +180,13 @@ func (k *KMS) DeleteAlias(input DeleteAliasInput) (DeleteAliasOutput, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	if _, ok := k.aliases[input.AliasName]; !ok {
+	// TODO: handle alias not starting with "alias/"
+	aliasName := strings.TrimPrefix(input.AliasName, "alias/")
+	if _, ok := k.aliases[aliasName]; !ok {
 		return output, errors.New("NotFoundException")
 	}
 
-	delete(k.aliases, input.AliasName)
+	delete(k.aliases, aliasName)
 	return output, nil
 }
 
@@ -185,8 +200,8 @@ func (k *KMS) ListAliases(input ListAliasesInput) (ListAliasesOutput, error) {
 	for alias, target := range k.aliases {
 		if input.KeyId == "" || input.KeyId == target {
 			output.Aliases = append(output.Aliases, APIAliasListEntry{
-				AliasName:   alias,
-				AliasArn:    k.arnGenerator.Generate("kms", "alias", strings.TrimPrefix(alias, "alias/")),
+				AliasName:   "alias/" + alias,
+				AliasArn:    k.arnGenerator.Generate("kms", "alias", alias),
 				TargetKeyId: target,
 			})
 		}

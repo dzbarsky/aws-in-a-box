@@ -98,7 +98,7 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (CreateStreamOutput, err
 func (k *Kinesis) DeleteStream(input DeleteStreamInput) (DeleteStreamOutput, error) {
 	streamName := input.StreamName
 	if streamName == "" {
-		streamName = arn.ExtractId(input.StreamARN)
+		_, streamName = arn.ExtractId(input.StreamARN)
 	}
 
 	k.mu.Lock()
@@ -116,7 +116,7 @@ func (k *Kinesis) DeleteStream(input DeleteStreamInput) (DeleteStreamOutput, err
 func (k *Kinesis) PutRecord(input PutRecordInput) (PutRecordOutput, error) {
 	streamName := input.StreamName
 	if streamName == "" {
-		streamName = arn.ExtractId(input.StreamARN)
+		_, streamName = arn.ExtractId(input.StreamARN)
 	}
 
 	fmt.Println("PutRecord", streamName)
@@ -209,7 +209,7 @@ func (k *Kinesis) GetRecords(input GetRecordsInput) (GetRecordsOutput, error) {
 func (k *Kinesis) GetShardIterator(input GetShardIteratorInput) (GetShardIteratorOutput, error) {
 	streamName := input.StreamName
 	if streamName == "" {
-		streamName = arn.ExtractId(input.StreamARN)
+		_, streamName = arn.ExtractId(input.StreamARN)
 	}
 
 	fmt.Println("GetShardIterator", streamName, input)
@@ -244,7 +244,7 @@ func (k *Kinesis) GetShardIterator(input GetShardIteratorInput) (GetShardIterato
 func (k *Kinesis) ListShards(input ListShardsInput) (ListShardsOutput, error) {
 	streamName := input.StreamName
 	if streamName == "" {
-		streamName = arn.ExtractId(input.StreamARN)
+		_, streamName = arn.ExtractId(input.StreamARN)
 	}
 
 	fmt.Println("ListShards", streamName)
@@ -280,7 +280,7 @@ func (k *Kinesis) ListShards(input ListShardsInput) (ListShardsOutput, error) {
 func (k *Kinesis) AddTagsToStream(input AddTagsToStreamInput) (AddTagsToStreamOutput, error) {
 	streamName := input.StreamName
 	if streamName == "" {
-		streamName = arn.ExtractId(input.StreamARN)
+		_, streamName = arn.ExtractId(input.StreamARN)
 	}
 
 	k.mu.Lock()
@@ -302,7 +302,7 @@ func (k *Kinesis) AddTagsToStream(input AddTagsToStreamInput) (AddTagsToStreamOu
 func (k *Kinesis) RemoveTagsFromStream(input RemoveTagsFromStreamInput) (RemoveTagsFromStreamOutput, error) {
 	streamName := input.StreamName
 	if streamName == "" {
-		streamName = arn.ExtractId(input.StreamARN)
+		_, streamName = arn.ExtractId(input.StreamARN)
 	}
 
 	k.mu.Lock()
@@ -324,7 +324,7 @@ func (k *Kinesis) RemoveTagsFromStream(input RemoveTagsFromStreamInput) (RemoveT
 func (k *Kinesis) ListTagsForStream(input ListTagsForStreamInput) (ListTagsForStreamOutput, error) {
 	streamName := input.StreamName
 	if streamName == "" {
-		streamName = arn.ExtractId(input.StreamARN)
+		_, streamName = arn.ExtractId(input.StreamARN)
 	}
 
 	k.mu.Lock()

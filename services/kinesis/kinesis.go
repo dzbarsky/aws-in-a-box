@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"aws-in-a-box/arn"
 )
 
 var (
@@ -36,13 +38,16 @@ type Stream struct {
 }
 
 type Kinesis struct {
+	arnGenerator arn.Generator
+
 	mu      sync.Mutex
 	streams map[string]*Stream
 }
 
-func New() *Kinesis {
+func New(generator arn.Generator) *Kinesis {
 	return &Kinesis{
-		streams: map[string]*Stream{},
+		arnGenerator: generator,
+		streams:      map[string]*Stream{},
 	}
 }
 
@@ -91,7 +96,12 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (CreateStreamOutput, err
 
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecord.html
 func (k *Kinesis) PutRecord(input PutRecordInput) (PutRecordOutput, error) {
-	fmt.Println("PutRecord", input.StreamName)
+	streamName := input.StreamName
+	if streamName == "" {
+		streamName = arn.ExtractId(input.StreamARN)
+	}
+
+	fmt.Println("PutRecord", streamName)
 
 	var hashKey big.Int
 	if input.ExplicitHashKey != "" {
@@ -104,7 +114,7 @@ func (k *Kinesis) PutRecord(input PutRecordInput) (PutRecordOutput, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	stream, ok := k.streams[input.StreamName]
+	stream, ok := k.streams[streamName]
 	if !ok {
 		return PutRecordOutput{}, fmt.Errorf("Stream does not exist")
 	}
@@ -175,14 +185,19 @@ func (k *Kinesis) GetRecords(input GetRecordsInput) (GetRecordsOutput, error) {
 
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_GetShardIterator.html
 func (k *Kinesis) GetShardIterator(input GetShardIteratorInput) (GetShardIteratorOutput, error) {
-	fmt.Println("GetShardIterator", input.StreamName, input)
+	streamName := input.StreamName
+	if streamName == "" {
+		streamName = arn.ExtractId(input.StreamARN)
+	}
+
+	fmt.Println("GetShardIterator", streamName, input)
 
 	output := GetShardIteratorOutput{}
 	switch input.ShardIteratorType {
 	case "TRIM_HORIZON":
-		output.ShardIterator = encodeShardIterator(input.StreamName, input.ShardId, 0)
+		output.ShardIterator = encodeShardIterator(streamName, input.ShardId, 0)
 	case "AT_SEQUENCE_NUMBER", "LATEST":
-		shard, err := k.lockedGetShard(input.StreamName, input.ShardId)
+		shard, err := k.lockedGetShard(streamName, input.ShardId)
 		if err != nil {
 			return output, fmt.Errorf("Shard does not exist")
 		}
@@ -195,7 +210,7 @@ func (k *Kinesis) GetShardIterator(input GetShardIteratorInput) (GetShardIterato
 				}
 			}
 		}
-		output.ShardIterator = encodeShardIterator(input.StreamName, input.ShardId, index)
+		output.ShardIterator = encodeShardIterator(streamName, input.ShardId, index)
 	default:
 		return output, fmt.Errorf("Unsupported iterator type: %s", input.ShardIteratorType)
 	}
@@ -205,12 +220,17 @@ func (k *Kinesis) GetShardIterator(input GetShardIteratorInput) (GetShardIterato
 
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_ListShards.html
 func (k *Kinesis) ListShards(input ListShardsInput) (ListShardsOutput, error) {
-	fmt.Println("ListShards", input.StreamName)
+	streamName := input.StreamName
+	if streamName == "" {
+		streamName = arn.ExtractId(input.StreamARN)
+	}
+
+	fmt.Println("ListShards", streamName)
 
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	stream, ok := k.streams[input.StreamName]
+	stream, ok := k.streams[streamName]
 	if !ok {
 		return ListShardsOutput{}, fmt.Errorf("Stream does not exist")
 	}
@@ -236,10 +256,15 @@ func (k *Kinesis) ListShards(input ListShardsInput) (ListShardsOutput, error) {
 
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_AddTagsToStream.html
 func (k *Kinesis) AddTagsToStream(input AddTagsToStreamInput) (AddTagsToStreamOutput, error) {
+	streamName := input.StreamName
+	if streamName == "" {
+		streamName = arn.ExtractId(input.StreamARN)
+	}
+
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	stream, ok := k.streams[input.StreamName]
+	stream, ok := k.streams[streamName]
 	if !ok {
 		return AddTagsToStreamOutput{}, fmt.Errorf("Stream does not exist")
 	}
@@ -253,10 +278,15 @@ func (k *Kinesis) AddTagsToStream(input AddTagsToStreamInput) (AddTagsToStreamOu
 
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_RemoveTagsFromStream.html
 func (k *Kinesis) RemoveTagsFromStream(input RemoveTagsFromStreamInput) (RemoveTagsFromStreamOutput, error) {
+	streamName := input.StreamName
+	if streamName == "" {
+		streamName = arn.ExtractId(input.StreamARN)
+	}
+
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	stream, ok := k.streams[input.StreamName]
+	stream, ok := k.streams[streamName]
 	if !ok {
 		return RemoveTagsFromStreamOutput{}, fmt.Errorf("Stream does not exist")
 	}
@@ -270,12 +300,17 @@ func (k *Kinesis) RemoveTagsFromStream(input RemoveTagsFromStreamInput) (RemoveT
 
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_ListTagsForStream.html
 func (k *Kinesis) ListTagsForStream(input ListTagsForStreamInput) (ListTagsForStreamOutput, error) {
+	streamName := input.StreamName
+	if streamName == "" {
+		streamName = arn.ExtractId(input.StreamARN)
+	}
+
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
 	var output ListTagsForStreamOutput
 
-	stream, ok := k.streams[input.StreamName]
+	stream, ok := k.streams[streamName]
 	if !ok {
 		return output, fmt.Errorf("Stream does not exist")
 	}

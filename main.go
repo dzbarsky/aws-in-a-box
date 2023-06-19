@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
+	"aws-in-a-box/arn"
 	"aws-in-a-box/services/kinesis"
 	"aws-in-a-box/services/kms"
 )
@@ -29,8 +30,14 @@ func main() {
 
 	methodRegistry := make(map[string]http.HandlerFunc)
 
+	arnGenerator := arn.Generator{
+		// TODO: make these configurable?
+		AwsAccountId: "12345",
+		Region:       "us-east-1",
+	}
+
 	if *enableKinesis {
-		k := kinesis.New()
+		k := kinesis.New(arnGenerator)
 		for _, name := range strings.Split(*kinesisInitialStreams, ",") {
 			k.CreateStream(kinesis.CreateStreamInput{
 				StreamName: name,
@@ -41,11 +48,7 @@ func main() {
 	}
 
 	if *enableKMS {
-		k := kms.New(kms.ServiceData{
-			// TODO: make these configurable?
-			AWSAccountId: "12345",
-			Region:       "us-east-1",
-		})
+		k := kms.New(arnGenerator)
 		k.RegisterHTTPHandlers(methodRegistry)
 	}
 

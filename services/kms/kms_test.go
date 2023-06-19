@@ -1,14 +1,15 @@
 package kms
 
 import (
+	"aws-in-a-box/arn"
 	"bytes"
 	"strings"
 	"testing"
 )
 
 func newKMSWithKey() (*KMS, string) {
-	k := New(ServiceData{
-		AWSAccountId: "12345",
+	k := New(arn.Generator{
+		AwsAccountId: "12345",
 		Region:       "us-east-1",
 	})
 	output, err := k.CreateKey(CreateKeyInput{})

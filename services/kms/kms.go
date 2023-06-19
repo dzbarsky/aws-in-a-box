@@ -1,6 +1,7 @@
 package kms
 
 import (
+	"aws-in-a-box/arn"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -37,13 +38,8 @@ func (k *KeyWithMetadata) Encrypt(
 	return append(packedBlob, ciphertext...), nil
 }
 
-type ServiceData struct {
-	Region       string
-	AWSAccountId string
-}
-
 type KMS struct {
-	serviceData ServiceData
+	arnGenerator arn.Generator
 
 	mu sync.Mutex
 
@@ -51,24 +47,16 @@ type KMS struct {
 	keys    map[KeyId]*KeyWithMetadata
 }
 
-func New(serviceData ServiceData) *KMS {
+func New(arnGenerator arn.Generator) *KMS {
 	return &KMS{
-		serviceData: serviceData,
-		aliases:     make(map[string]KeyId),
-		keys:        make(map[KeyId]*KeyWithMetadata),
+		arnGenerator: arnGenerator,
+		aliases:      make(map[string]KeyId),
+		keys:         make(map[KeyId]*KeyWithMetadata),
 	}
 }
 
-func (k *KMS) arnPrefix() string {
-	return "arn:aws:kms:" + k.serviceData.Region + ":" + k.serviceData.AWSAccountId + ":"
-}
-
 func (k *KMS) arnFromKeyId(keyId string) string {
-	return k.arnPrefix() + "key/" + keyId
-}
-
-func keyIdFromArn(arn string) KeyId {
-	return KeyId(strings.Split(arn, "/")[1])
+	return k.arnGenerator.Generate("kms", "key", keyId)
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateKey.html
@@ -128,7 +116,7 @@ func (k *KMS) lockedGetKey(keyId string) (*KeyWithMetadata, error) {
 	}
 
 	if strings.HasPrefix(keyId, "arn:") {
-		keyId = keyIdFromArn(keyId)
+		keyId = arn.ExtractId(keyId)
 	}
 
 	key, ok := k.keys[keyId]

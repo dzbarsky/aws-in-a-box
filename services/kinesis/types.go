@@ -11,6 +11,7 @@ type CreateStreamOutput struct{}
 type PutRecordInput struct {
 	PartitionKey string
 	StreamName   string
+	StreamARN    string
 	Data         string
 
 	ExplicitHashKey string
@@ -22,6 +23,7 @@ type GetShardIteratorInput struct {
 	ShardId                string
 	ShardIteratorType      string
 	StreamName             string
+	StreamARN              string
 	StartingSequenceNumber string
 }
 
@@ -43,6 +45,7 @@ type GetRecordsOutput struct {
 
 type ListShardsInput struct {
 	StreamName  string
+	StreamARN   string
 	ShardFilter struct {
 		Type string
 	}
@@ -75,16 +78,16 @@ type APIRecord struct {
 }
 
 type AddTagsToStreamInput struct {
-	//StreamARN string
 	StreamName string
+	StreamARN  string
 	Tags       map[string]string
 }
 
 type AddTagsToStreamOutput struct{}
 
 type RemoveTagsFromStreamInput struct {
-	//StreamARN string
 	StreamName string
+	StreamARN  string
 	TagKeys    []string
 }
 
@@ -92,6 +95,7 @@ type RemoveTagsFromStreamOutput struct{}
 
 type ListTagsForStreamInput struct {
 	StreamName string
+	StreamARN  string
 }
 
 type ListTagsForStreamOutput struct {

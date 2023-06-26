@@ -23,4 +23,4 @@ jobs:
       - name: Release artifact
         uses: softprops/action-gh-release@v1
         with:
-k         files: ./aws-in-a-box
+          files: ./aws-in-a-box

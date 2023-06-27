@@ -4,12 +4,13 @@ import (
 	"aws-in-a-box/arn"
 	"crypto/rand"
 	"encoding/binary"
-	"errors"
 	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/gofrs/uuid/v5"
+
+	"aws-in-a-box/awserrors"
 )
 
 type KeyId = string
@@ -57,11 +58,9 @@ func New(arnGenerator arn.Generator) *KMS {
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateKey.html
-func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
+func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-
-	var output CreateKeyOutput
 
 	keyId := uuid.Must(uuid.NewV4()).String()
 
@@ -71,14 +70,14 @@ func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
 	case "", "SYMMETRIC_DEFAULT":
 		aesKey = newAesKey()
 	case "HMAC_224", "HMAC_256", "HMAC_384", "HMAC_512":
-		return output, errors.New("UnsupportedOperationException")
+		return nil, UnsupportedOperationException("")
 	case "RSA_2048", "RSA_3072", "RSA_4096":
-		return output, errors.New("UnsupportedOperationException")
+		return nil, UnsupportedOperationException("")
 	case "ECC_NIST_P256", "ECC_NIST_P384", "ECC_NIST_P521":
-		return output, errors.New("UnsupportedOperationException")
+		return nil, UnsupportedOperationException("")
 	default:
 		// "ECC_SECG_P256K1", "SM2":
-		return output, errors.New("UnsupportedOperationException")
+		return nil, UnsupportedOperationException("")
 	}
 
 	key := &KeyWithMetadata{
@@ -88,14 +87,14 @@ func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
 
 	for _, t := range input.Tags {
 		if !isValidTagKey(t.TagKey) || !isValidTagValue(t.TagValue) {
-			return output, errors.New("TagException")
+			return nil, TagException("")
 		}
 		key.Tags[t.TagKey] = t.TagValue
 	}
 
 	k.keys[keyId] = key
 
-	return CreateKeyOutput{
+	return &CreateKeyOutput{
 		KeyMetadata: APIKeyMetadata{
 			Arn:   k.arnGenerator.Generate("kms", "key", keyId),
 			KeyId: keyId,
@@ -103,7 +102,7 @@ func (k *KMS) CreateKey(input CreateKeyInput) (CreateKeyOutput, error) {
 	}, nil
 }
 
-func (k *KMS) lockedGetKey(keyId string) (*KeyWithMetadata, error) {
+func (k *KMS) lockedGetKey(keyId string) *KeyWithMetadata {
 	// There are 4 possible ways to specify a key:
 	// - Key ID: 1234abcd-12ab-34cd-56ef-1234567890ab
 	// - Key ARN: arn:aws:kms:us-east-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
@@ -123,76 +122,68 @@ func (k *KMS) lockedGetKey(keyId string) (*KeyWithMetadata, error) {
 		var ok bool
 		keyId, ok = k.aliases[keyId]
 		if !ok {
-			return nil, errors.New("NotFoundException")
+			return nil
 		}
 	}
 
-	key, ok := k.keys[keyId]
-	if !ok {
-		return nil, errors.New("NotFoundException")
-	}
-	return key, nil
+	return k.keys[keyId]
 }
 
 var aliasNameRe = regexp.MustCompile("^[a-zA-Z0-9/_-]+$")
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateAlias.html
-func (k *KMS) CreateAlias(input CreateAliasInput) (CreateAliasOutput, error) {
-	var output CreateAliasOutput
-
+func (k *KMS) CreateAlias(input CreateAliasInput) (*CreateAliasOutput, *awserrors.Error) {
 	if !strings.HasPrefix(input.AliasName, "alias/") {
-		return output, errors.New("InvalidAliasNameException")
+		return nil, InvalidAliasNameException("")
 	}
 
 	if strings.HasPrefix(input.AliasName, "alias/aws/") {
-		return output, errors.New("InvalidAliasNameException")
+		return nil, InvalidAliasNameException("")
 	}
 
 	if len(input.AliasName) > 256 {
-		return output, errors.New("InvalidAliasNameException")
+		return nil, InvalidAliasNameException("")
 	}
 
 	if !aliasNameRe.MatchString(input.AliasName) {
-		return output, errors.New("InvalidAliasNameException")
+		return nil, InvalidAliasNameException("")
 	}
 
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	key, err := k.lockedGetKey(input.TargetKeyId)
-	if err != nil {
-		return output, err
+	key := k.lockedGetKey(input.TargetKeyId)
+	if key == nil {
+		return nil, NotFoundException("")
 	}
 
 	aliasName := strings.TrimPrefix(input.AliasName, "alias/")
 	if _, ok := k.aliases[aliasName]; ok {
-		return output, errors.New("AlreadyExistsException")
+		return nil, AlreadyExistsException("")
 	}
 
 	k.aliases[aliasName] = key.Id
-	return output, nil
+	return nil, nil
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_DeleteAlias.html
-func (k *KMS) DeleteAlias(input DeleteAliasInput) (DeleteAliasOutput, error) {
-	var output DeleteAliasOutput
-
+func (k *KMS) DeleteAlias(input DeleteAliasInput) (*DeleteAliasOutput, *awserrors.Error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
 	// TODO: handle alias not starting with "alias/"
 	aliasName := strings.TrimPrefix(input.AliasName, "alias/")
 	if _, ok := k.aliases[aliasName]; !ok {
-		return output, errors.New("NotFoundException")
+		return nil, NotFoundException("")
 	}
 
 	delete(k.aliases, aliasName)
-	return output, nil
+	return nil, nil
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_DeleteAlias.html
-func (k *KMS) ListAliases(input ListAliasesInput) (ListAliasesOutput, error) {
-	var output ListAliasesOutput
+func (k *KMS) ListAliases(input ListAliasesInput) (*ListAliasesOutput, *awserrors.Error) {
+	output := &ListAliasesOutput{}
 
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -211,12 +202,10 @@ func (k *KMS) ListAliases(input ListAliasesInput) (ListAliasesOutput, error) {
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_GenerateDataKey.html
-func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (GenerateDataKeyOutput, error) {
-	var output GenerateDataKeyOutput
-
+func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (*GenerateDataKeyOutput, *awserrors.Error) {
 	numberOfBytes := input.NumberOfBytes
 	if numberOfBytes < 0 || numberOfBytes > 1024 {
-		return output, errors.New("Invalid number of bytes value")
+		return nil, XXXTodoException("Invalid number of bytes value")
 	}
 	if numberOfBytes == 0 {
 		switch input.KeySpec {
@@ -225,9 +214,9 @@ func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (GenerateDataKeyOutput
 		case "AES_128":
 			numberOfBytes = 16
 		case "":
-			return output, errors.New("Must specify either KeySpec or NumberOfBytes")
+			return nil, InvalidParameterCombination("Must specify either KeySpec or NumberOfBytes")
 		default:
-			return output, errors.New("Invalid value for KeySpec")
+			return nil, XXXTodoException("Invalid value for KeySpec")
 		}
 	}
 
@@ -236,22 +225,22 @@ func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (GenerateDataKeyOutput
 
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	key, err := k.lockedGetKey(input.KeyId)
-	if err != nil {
-		return output, err
+	key := k.lockedGetKey(input.KeyId)
+	if key == nil {
+		return nil, NotFoundException("")
 	}
 
 	if key.Disabled {
-		return output, errors.New("DisabledException")
+		return nil, DisabledException("")
 	}
 
 	// TODO: check for AES key when we have non-AES support
 	encryptedDataKey, err := key.Encrypt(dataKey, input.EncryptionContext)
 	if err != nil {
-		return output, err
+		return nil, KMSInternalException(err.Error())
 	}
 
-	return GenerateDataKeyOutput{
+	return &GenerateDataKeyOutput{
 		KeyId:          key.Id,
 		Plaintext:      dataKey,
 		CiphertextBlob: encryptedDataKey,
@@ -261,44 +250,46 @@ func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (GenerateDataKeyOutput
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_GenerateDataKey.html
 func (k *KMS) GenerateDataKeyWithoutPlaintext(
 	input GenerateDataKeyWithoutPlaintextInput,
-) (GenerateDataKeyWithoutPlaintextOutput, error) {
+) (*GenerateDataKeyWithoutPlaintextOutput, *awserrors.Error) {
 	output, err := k.GenerateDataKey(input)
-	return GenerateDataKeyWithoutPlaintextOutput{
+	if err != nil {
+		return nil, err
+	}
+
+	return &GenerateDataKeyWithoutPlaintextOutput{
 		CiphertextBlob: output.CiphertextBlob,
 		KeyId:          output.KeyId,
-	}, err
+	}, nil
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_Encrypt.html
-func (k *KMS) Encrypt(input EncryptInput) (EncryptOutput, error) {
+func (k *KMS) Encrypt(input EncryptInput) (*EncryptOutput, *awserrors.Error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	var output EncryptOutput
-
 	if len(input.Plaintext) == 0 || len(input.Plaintext) > 4096 {
-		return output, errors.New("bad length")
+		return nil, XXXTodoException("bad length")
 	}
 
 	if input.EncryptionAlgorithm == "" {
 		input.EncryptionAlgorithm = "SYMMETRIC_DEFAULT"
 	}
 
-	key, err := k.lockedGetKey(input.KeyId)
-	if err != nil {
-		return output, err
+	key := k.lockedGetKey(input.KeyId)
+	if key == nil {
+		return nil, NotFoundException("")
 	}
 
 	if key.Disabled {
-		return output, errors.New("DisabledException")
+		return nil, DisabledException("")
 	}
 
 	ciphertext, err := key.Encrypt(input.Plaintext, input.EncryptionContext)
 	if err != nil {
-		return output, err
+		return nil, KMSInternalException(err.Error())
 	}
 
-	return EncryptOutput{
+	return &EncryptOutput{
 		CiphertextBlob:      ciphertext,
 		EncryptionAlgorithm: input.EncryptionAlgorithm,
 		KeyId:               key.Id,
@@ -306,7 +297,7 @@ func (k *KMS) Encrypt(input EncryptInput) (EncryptOutput, error) {
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_Decrypt.html
-func (k *KMS) Decrypt(input DecryptInput) (DecryptOutput, error) {
+func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 	if input.EncryptionAlgorithm == "" {
 		input.EncryptionAlgorithm = "SYMMETRIC_DEFAULT"
 	}
@@ -324,21 +315,21 @@ func (k *KMS) Decrypt(input DecryptInput) (DecryptOutput, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	key, err := k.lockedGetKey(keyArn)
-	if err != nil {
-		return DecryptOutput{}, err
+	key := k.lockedGetKey(keyArn)
+	if key == nil {
+		return nil, NotFoundException("")
 	}
 
 	if key.Disabled {
-		return DecryptOutput{}, errors.New("DisabledException")
+		return nil, DisabledException("")
 	}
 
 	plaintext, err := key.Key.Decrypt(data, version, input.EncryptionContext)
 	if err != nil {
-		return DecryptOutput{}, err
+		return nil, KMSInternalException(err.Error())
 	}
 
-	return DecryptOutput{
+	return &DecryptOutput{
 		Plaintext:           plaintext,
 		EncryptionAlgorithm: input.EncryptionAlgorithm,
 		KeyId:               key.Id,
@@ -346,102 +337,102 @@ func (k *KMS) Decrypt(input DecryptInput) (DecryptOutput, error) {
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_DisableKey.html
-func (k *KMS) DisableKey(input DisableKeyInput) (DisableKeyOutput, error) {
+func (k *KMS) DisableKey(input DisableKeyInput) (*DisableKeyOutput, *awserrors.Error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	key, err := k.lockedGetKey(input.KeyId)
-	if err != nil {
-		return DisableKeyOutput{}, err
+	key := k.lockedGetKey(input.KeyId)
+	if key == nil {
+		return nil, NotFoundException("")
 	}
 
 	key.Disabled = true
-	return DisableKeyOutput{}, nil
+	return nil, nil
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_EnableKey.html
-func (k *KMS) EnableKey(input EnableKeyInput) (EnableKeyOutput, error) {
+func (k *KMS) EnableKey(input EnableKeyInput) (*EnableKeyOutput, *awserrors.Error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	key, err := k.lockedGetKey(input.KeyId)
-	if err != nil {
-		return EnableKeyOutput{}, err
+	key := k.lockedGetKey(input.KeyId)
+	if key == nil {
+		return nil, NotFoundException("")
 	}
 
 	key.Disabled = false
-	return EnableKeyOutput{}, nil
+	return nil, nil
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_TagResource.html
-func (k *KMS) TagResource(input TagResourceInput) (TagResourceOutput, error) {
+func (k *KMS) TagResource(input TagResourceInput) (*TagResourceOutput, *awserrors.Error) {
 	if strings.HasPrefix(input.KeyId, "alias/") {
-		return TagResourceOutput{}, errors.New("Cannot tag alias")
+		return nil, XXXTodoException("Cannot tag alias")
 	}
 
 	for _, t := range input.Tags {
 		if !isValidTagKey(t.TagKey) || !isValidTagValue(t.TagValue) {
-			return TagResourceOutput{}, errors.New("TagException")
+			return nil, TagException("")
 		}
 	}
 
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	key, err := k.lockedGetKey(input.KeyId)
-	if err != nil {
-		return TagResourceOutput{}, err
+	key := k.lockedGetKey(input.KeyId)
+	if key == nil {
+		return nil, NotFoundException("")
 	}
 
 	for _, t := range input.Tags {
 		key.Tags[t.TagKey] = t.TagValue
 	}
 
-	return TagResourceOutput{}, nil
+	return nil, nil
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_UntagResource.html
-func (k *KMS) UntagResource(input UntagResourceInput) (UntagResourceOutput, error) {
+func (k *KMS) UntagResource(input UntagResourceInput) (*UntagResourceOutput, *awserrors.Error) {
 	if strings.HasPrefix(input.KeyId, "alias/") {
-		return UntagResourceOutput{}, errors.New("Cannot tag alias")
+		return nil, XXXTodoException("Cannot tag alias")
 	}
 
 	for _, tagKey := range input.Tags {
 		if !isValidTagKey(tagKey) {
-			return UntagResourceOutput{}, errors.New("TagException")
+			return nil, TagException("")
 		}
 	}
 
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	key, err := k.lockedGetKey(input.KeyId)
-	if err != nil {
-		return UntagResourceOutput{}, err
+	key := k.lockedGetKey(input.KeyId)
+	if key == nil {
+		return nil, NotFoundException("")
 	}
 
 	for _, tag := range input.Tags {
 		delete(key.Tags, tag)
 	}
 
-	return UntagResourceOutput{}, nil
+	return nil, nil
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_ListResourceTags.html
-func (k *KMS) ListResourceTags(input ListResourceTagsInput) (ListResourceTagsOutput, error) {
-	var output ListResourceTagsOutput
+func (k *KMS) ListResourceTags(input ListResourceTagsInput) (*ListResourceTagsOutput, *awserrors.Error) {
 	if strings.HasPrefix(input.KeyId, "alias/") {
-		return output, errors.New("Cannot tag alias")
+		return nil, XXXTodoException("Cannot tag alias")
 	}
 
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	key, err := k.lockedGetKey(input.KeyId)
-	if err != nil {
-		return output, err
+	key := k.lockedGetKey(input.KeyId)
+	if key == nil {
+		return nil, NotFoundException("")
 	}
 
+	output := &ListResourceTagsOutput{}
 	for tagKey, tagValue := range key.Tags {
 		output.Tags = append(output.Tags, APITag{
 			TagKey:   tagKey,
@@ -453,12 +444,11 @@ func (k *KMS) ListResourceTags(input ListResourceTagsInput) (ListResourceTagsOut
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_ListKeys.html
-func (k *KMS) ListKeys(input ListKeysInput) (ListKeysOutput, error) {
-	var output ListKeysOutput
-
+func (k *KMS) ListKeys(input ListKeysInput) (*ListKeysOutput, *awserrors.Error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
+	output := &ListKeysOutput{}
 	for _, key := range k.keys {
 		output.Keys = append(output.Keys, APIKey{
 			KeyId:  key.Id,

@@ -9,6 +9,8 @@ import (
 	"net/http"
 
 	"github.com/fxamacker/cbor/v2"
+
+	"aws-in-a-box/awserrors"
 )
 
 const (
@@ -51,21 +53,29 @@ func strictUnmarshal(r io.Reader, contentType string, target any) error {
 	return nil
 }
 
-func marshalOutput(output any, err error, contentType string) []byte {
-	if err != nil {
+func writeResponse(w http.ResponseWriter, output any, awserr *awserrors.Error, contentType string) {
+	if awserr != nil {
 		// TODO: correct error handling
-		panic(err)
-	}
-	var data []byte
-	if contentType == jsonContentType {
-		data, err = json.Marshal(output)
+		w.WriteHeader(awserr.Code)
+		output = awserr.Body
 	} else {
-		data, err = cbor.Marshal(output)
+		w.WriteHeader(http.StatusOK)
 	}
+
+	if output == nil {
+		return
+	}
+
+	marshalFunc := cbor.Marshal
+	if contentType == jsonContentType {
+		marshalFunc = json.Marshal
+	}
+
+	data, err := marshalFunc(output)
 	if err != nil {
 		panic(err)
 	}
-	return data
+	w.Write(data)
 }
 
 type Registry = map[string]http.HandlerFunc
@@ -74,7 +84,7 @@ func Register[Input any, Output any](
 	registry map[string]http.HandlerFunc,
 	service string,
 	method string,
-	handler func(input Input) (Output, error),
+	handler func(input Input) (*Output, *awserrors.Error),
 ) {
 	registry[service+"."+method] = func(w http.ResponseWriter, r *http.Request) {
 
@@ -86,8 +96,7 @@ func Register[Input any, Output any](
 			panic(fmt.Errorf("%s: %v", method, err))
 		}
 
-		output, err := handler(input)
-		data := marshalOutput(output, err, contentType)
-		w.Write(data)
+		output, awserr := handler(input)
+		writeResponse(w, output, awserr, contentType)
 	}
 }

@@ -1,10 +1,11 @@
 package kms
 
 import (
-	"aws-in-a-box/arn"
 	"bytes"
 	"strings"
 	"testing"
+
+	"aws-in-a-box/arn"
 )
 
 func newKMSWithKeyReturningARN() (*KMS, string, string) {

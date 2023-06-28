@@ -2,6 +2,7 @@ package kinesis
 
 import (
 	//"slices"
+	"strconv"
 	"testing"
 
 	"aws-in-a-box/arn"
@@ -141,5 +142,102 @@ func TestListShards(t *testing.T) {
 
 	if shards[1].HashKeyRange.EndingHashKey != "340282366920938463463374607431768211455" {
 		t.Fatal("bad end range " + shards[1].HashKeyRange.EndingHashKey)
+	}
+}
+
+func TestGetShardIterator(t *testing.T) {
+	streamName := "stream"
+	k := New(generator)
+	_, err := k.CreateStream(CreateStreamInput{
+		StreamName: streamName,
+		ShardCount: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 5; i++ {
+		_, err := k.PutRecord(PutRecordInput{
+			StreamName: streamName,
+			PartitionKey: "key",
+			Data: strconv.Itoa(i),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	shardsOutput, err := k.ListShards(ListShardsInput{
+		StreamName: streamName,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	shardId := shardsOutput.Shards[0].ShardId
+
+	_, err = k.GetShardIterator(GetShardIteratorInput{
+		StreamName: streamName,
+	})
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+
+	shardIteratorOutput, err := k.GetShardIterator(GetShardIteratorInput{
+		StreamName: streamName,
+		ShardId: shardId,
+		ShardIteratorType: "TRIM_HORIZON",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordsOutput, err := k.GetRecords(GetRecordsInput{
+		ShardIterator: shardIteratorOutput.ShardIterator,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	allRecords := recordsOutput.Records
+	if len(allRecords) != 5 {
+		t.Fatal("not all records found")
+	}
+
+	shardIteratorOutput, err = k.GetShardIterator(GetShardIteratorInput{
+		StreamName: streamName,
+		ShardId: shardId,
+		ShardIteratorType: "LATEST",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordsOutput, err = k.GetRecords(GetRecordsInput{
+		ShardIterator: shardIteratorOutput.ShardIterator,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(recordsOutput.Records) != 0 {
+		t.Fatal("records found")
+	}
+
+	shardIteratorOutput, err = k.GetShardIterator(GetShardIteratorInput{
+		StreamName: streamName,
+		ShardId: shardId,
+		ShardIteratorType: "AT_SEQUENCE_NUMBER",
+		StartingSequenceNumber: allRecords[2].SequenceNumber,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordsOutput, err = k.GetRecords(GetRecordsInput{
+		ShardIterator: shardIteratorOutput.ShardIterator,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(recordsOutput.Records) != 3 {
+		t.Fatal("records found", len(recordsOutput.Records))
 	}
 }

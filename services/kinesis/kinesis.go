@@ -192,7 +192,6 @@ func (k *Kinesis) GetRecords(input GetRecordsInput) (*GetRecordsOutput, *awserro
 
 	output := &GetRecordsOutput{}
 	var currIndex int
-	fmt.Printf("Found %d records\n", len(shard.Records))
 	for currIndex = start; currIndex < len(shard.Records); currIndex++ {
 		output.Records = append(output.Records, shard.Records[currIndex])
 		/*input.Limit -= 1
@@ -219,18 +218,22 @@ func (k *Kinesis) GetShardIterator(input GetShardIteratorInput) (*GetShardIterat
 	switch input.ShardIteratorType {
 	case "TRIM_HORIZON":
 		output.ShardIterator = encodeShardIterator(streamName, input.ShardId, 0)
-	case "AT_SEQUENCE_NUMBER", "LATEST":
+	case "LATEST":
+		shard, err := k.lockedGetShard(streamName, input.ShardId)
+		if err != nil {
+			return nil, err
+		}
+		output.ShardIterator = encodeShardIterator(streamName, input.ShardId, len(shard.Records))
+	case "AT_SEQUENCE_NUMBER":
 		shard, err := k.lockedGetShard(streamName, input.ShardId)
 		if err != nil {
 			return nil, err
 		}
 		index := 0
-		if input.ShardIteratorType == "AT_SEQUENCE_NUMBER" {
-			for i, record := range shard.Records {
-				if record.SequenceNumber >= input.StartingSequenceNumber {
-					index = i
-					break
-				}
+		for i, record := range shard.Records {
+			if record.SequenceNumber >= input.StartingSequenceNumber {
+				index = i
+				break
 			}
 		}
 		output.ShardIterator = encodeShardIterator(streamName, input.ShardId, index)

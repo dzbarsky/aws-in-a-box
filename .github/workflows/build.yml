@@ -10,6 +10,7 @@ jobs:
     strategy:
       matrix:
         go_os: [windows, linux, darwin]
+        go_arch: [amd64, arm64]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,9 +22,9 @@ jobs:
           go-version: '1.20'
 
       - name: Build
-        run: GOOS=${{ matrix.go_os }} CGO_ENABLED=0 go build -trimpath -o ./aws-in-a-box-${{ matrix.go_os }}
+        run: GOOS=${{ matrix.go_os }} GOARCH=${{ matrix.go_arch }} CGO_ENABLED=0 go build -trimpath -o ./aws-in-a-box-${{ matrix.go_os }}-${{ matrix.go_arch }}
 
       - name: Release artifact
         uses: softprops/action-gh-release@v1
         with:
-          files: ./aws-in-a-box-${{ matrix.go_os }}
+          files: ./aws-in-a-box-${{ matrix.go_os }}-${{ matrix.go_arch }}

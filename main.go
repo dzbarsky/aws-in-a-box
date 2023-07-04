@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"golang.org/x/net/http2"
@@ -46,11 +47,13 @@ func main() {
 			})
 		}
 		k.RegisterHTTPHandlers(methodRegistry)
+		log.Println("Enabled Kinesis")
 	}
 
 	if *enableKMS {
 		k := kms.New(arnGenerator)
 		k.RegisterHTTPHandlers(methodRegistry)
+		log.Println("Enabled KMS")
 	}
 
 	addr := ":" + strconv.Itoa(*port)
@@ -66,7 +69,7 @@ func main() {
 
 		// The target endpoint is specified in the `X-Amz-Target` header.
 		target := r.Header.Get("X-Amz-Target")
-		fmt.Println(r.Method, r.URL.String(), target) //, r.Body)
+		log.Println(r.Method, r.URL.String(), target) //, r.Body)
 
 		w.Header().Add("x-amzn-RequestId", uuid.Must(uuid.NewV4()).String())
 		method, ok := methodRegistry[target]
@@ -83,6 +86,11 @@ func main() {
 		Addr:    addr,
 		Handler: h2c.NewHandler(handler, h2s),
 	}
+
+	go func() {
+		time.Sleep(time.Second)
+		log.Println("Server is up")
+	}()
 
 	err := h1s.ListenAndServe()
 	if err != nil {

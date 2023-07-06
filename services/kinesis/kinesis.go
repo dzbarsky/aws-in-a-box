@@ -34,22 +34,62 @@ type Shard struct {
 }
 
 type Stream struct {
-	Shards []*Shard
-	Tags   map[string]string
+	Retention time.Duration
+	Shards    []*Shard
+	Tags      map[string]string
 }
 
 type Kinesis struct {
-	arnGenerator arn.Generator
+	arnGenerator     arn.Generator
+	defaultRetention time.Duration
 
 	mu      sync.Mutex
 	streams map[string]*Stream
 }
 
-func New(generator arn.Generator) *Kinesis {
-	return &Kinesis{
-		arnGenerator: generator,
-		streams:      map[string]*Stream{},
+func New(generator arn.Generator, defaultRetention time.Duration) *Kinesis {
+	k := &Kinesis{
+		arnGenerator:     generator,
+		defaultRetention: defaultRetention,
+		streams:          map[string]*Stream{},
 	}
+	go func() {
+		for {
+			time.Sleep(k.defaultRetention / 2)
+			k.enforceDuration()
+		}
+	}()
+	return k
+}
+
+func (k *Kinesis) enforceDuration() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	now := time.Now()
+	for _, stream := range k.streams {
+		cutoff := now.Add(-stream.Retention).UnixNano()
+		for _, shard := range stream.Shards {
+			shard.Records = clip(shard.Records, cutoff)
+		}
+	}
+}
+
+func clip(records []APIRecord, cutoff int64) []APIRecord {
+	retainStartingAt := len(records)
+	for i, record := range records {
+		if record.ApproximateArrivalTimestamp >= cutoff {
+			retainStartingAt = i
+			break
+		}
+	}
+	if retainStartingAt == 0 {
+		return records
+	}
+
+	recordsRemaining := len(records) - retainStartingAt
+	copy(records, records[retainStartingAt:])
+	return records[:recordsRemaining]
 }
 
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_CreateStream.html
@@ -348,6 +388,46 @@ func (k *Kinesis) ListTagsForStream(input ListTagsForStreamInput) (*ListTagsForS
 	}
 
 	return output, nil
+}
+
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_IncreaseStreamRetentionPeriod.html
+func (k *Kinesis) IncreaseStreamRetentionPeriod(input IncreaseStreamRetentionPeriodInput) (*IncreaseStreamRetentionPeriodOutput, *awserrors.Error) {
+	streamName := input.StreamName
+	if streamName == "" {
+		_, streamName = arn.ExtractId(input.StreamARN)
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	stream, ok := k.streams[streamName]
+	if !ok {
+		return nil, awserrors.ResourceNotFoundException("")
+	}
+
+	// TODO(zbarsky): validation
+	stream.Retention = time.Duration(input.RetentionPeriodHours) * time.Hour
+	return nil, nil
+}
+
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_IncreaseStreamRetentionPeriod.html
+func (k *Kinesis) DecreaseStreamRetentionPeriod(input DecreaseStreamRetentionPeriodInput) (*DecreaseStreamRetentionPeriodOutput, *awserrors.Error) {
+	streamName := input.StreamName
+	if streamName == "" {
+		_, streamName = arn.ExtractId(input.StreamARN)
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	stream, ok := k.streams[streamName]
+	if !ok {
+		return nil, awserrors.ResourceNotFoundException("")
+	}
+
+	// TODO(zbarsky): validation
+	stream.Retention = time.Duration(input.RetentionPeriodHours) * time.Hour
+	return nil, nil
 }
 
 // These are complete HAX, they probably need to be more legit

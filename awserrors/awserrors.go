@@ -6,25 +6,25 @@ type Error struct {
 }
 
 type ErrorBody struct {
-	Type string `json:"__type"`
+	Type    string `json:"__type"`
 	Message string
 }
 
 func InvalidArgumentException(message string) *Error {
-	return &Error {
+	return &Error{
 		Code: 400,
 		Body: ErrorBody{
-			Type: "InvalidArgumentException",
+			Type:    "InvalidArgumentException",
 			Message: message,
 		},
 	}
 }
 
 func ResourceNotFoundException(message string) *Error {
-	return &Error {
+	return &Error{
 		Code: 400,
 		Body: ErrorBody{
-			Type: "ResourceNotFoundException",
+			Type:    "ResourceNotFoundException",
 			Message: message,
 		},
 	}

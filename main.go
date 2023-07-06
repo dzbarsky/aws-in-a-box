@@ -24,7 +24,10 @@ func main() {
 	port := flag.Int("port", 0, "Enable Kinesis service")
 
 	enableKinesis := flag.Bool("enableKinesis", true, "Enable Kinesis service")
-	kinesisInitialStreams := flag.String("kinesisInitialStreams", "", "Streams to create at startup. Example: stream1,stream2,stream3")
+	kinesisInitialStreams := flag.String("kinesisInitialStreams", "",
+		"Streams to create at startup. Example: stream1,stream2,stream3")
+	kinesisDefaultDuration := flag.Duration("kinesisDefaultDuration", 24*time.Hour,
+		"How long to retain messages. Can be used to control memory usage. After creation, retention can be adjusted with [Increase/Decrease]StreamRetentionPeriod")
 
 	enableKMS := flag.Bool("enableKMS", true, "Enable Kinesis service")
 
@@ -39,7 +42,7 @@ func main() {
 	}
 
 	if *enableKinesis {
-		k := kinesis.New(arnGenerator)
+		k := kinesis.New(arnGenerator, *kinesisDefaultDuration)
 		for _, name := range strings.Split(*kinesisInitialStreams, ",") {
 			k.CreateStream(kinesis.CreateStreamInput{
 				StreamName: name,

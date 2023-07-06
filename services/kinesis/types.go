@@ -117,3 +117,19 @@ type APITag struct {
 	Key   string
 	Value string
 }
+
+type IncreaseStreamRetentionPeriodInput struct {
+	StreamName           string
+	StreamARN            string
+	RetentionPeriodHours int32
+}
+
+type IncreaseStreamRetentionPeriodOutput struct{}
+
+type DecreaseStreamRetentionPeriodInput struct {
+	StreamName           string
+	StreamARN            string
+	RetentionPeriodHours int32
+}
+
+type DecreaseStreamRetentionPeriodOutput struct{}

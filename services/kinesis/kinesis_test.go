@@ -4,19 +4,20 @@ import (
 	//"slices"
 	"strconv"
 	"testing"
+	"time"
 
 	"aws-in-a-box/arn"
 )
 
 var generator = arn.Generator{
-		AwsAccountId: "12345",
-		Region:       "us-east-1",
-	}
+	AwsAccountId: "12345",
+	Region:       "us-east-1",
+}
 
 func newKinesisWithStream() (*Kinesis, string) {
 	streamName := "stream"
 
-	k := New(generator)
+	k := New(generator, time.Hour)
 	_, err := k.CreateStream(CreateStreamInput{
 		StreamName: streamName,
 	})
@@ -29,7 +30,7 @@ func newKinesisWithStream() (*Kinesis, string) {
 
 func TestStreamTags(t *testing.T) {
 	streamName := "stream"
-	k := New(generator)
+	k := New(generator, time.Hour)
 	_, err := k.CreateStream(CreateStreamInput{
 		StreamName: streamName,
 		ShardCount: 2,
@@ -58,7 +59,7 @@ func TestStreamTags(t *testing.T) {
 
 	_, err = k.RemoveTagsFromStream(RemoveTagsFromStreamInput{
 		StreamName: streamName,
-		TagKeys: []string{"k1"},
+		TagKeys:    []string{"k1"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +85,7 @@ func TestStreamTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	 
+
 	output, err = k.ListTagsForStream(ListTagsForStreamInput{
 		StreamName: streamName,
 	})
@@ -107,7 +108,7 @@ func TestStreamTags(t *testing.T) {
 
 func TestListShards(t *testing.T) {
 	streamName := "stream"
-	k := New(generator)
+	k := New(generator, time.Hour)
 	_, err := k.CreateStream(CreateStreamInput{
 		StreamName: streamName,
 		ShardCount: 2,
@@ -147,7 +148,7 @@ func TestListShards(t *testing.T) {
 
 func TestGetShardIterator(t *testing.T) {
 	streamName := "stream"
-	k := New(generator)
+	k := New(generator, time.Hour)
 	_, err := k.CreateStream(CreateStreamInput{
 		StreamName: streamName,
 		ShardCount: 2,
@@ -158,9 +159,9 @@ func TestGetShardIterator(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		_, err := k.PutRecord(PutRecordInput{
-			StreamName: streamName,
+			StreamName:   streamName,
 			PartitionKey: "key",
-			Data: strconv.Itoa(i),
+			Data:         strconv.Itoa(i),
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -183,8 +184,8 @@ func TestGetShardIterator(t *testing.T) {
 	}
 
 	shardIteratorOutput, err := k.GetShardIterator(GetShardIteratorInput{
-		StreamName: streamName,
-		ShardId: shardId,
+		StreamName:        streamName,
+		ShardId:           shardId,
 		ShardIteratorType: "TRIM_HORIZON",
 	})
 	if err != nil {
@@ -203,8 +204,8 @@ func TestGetShardIterator(t *testing.T) {
 	}
 
 	shardIteratorOutput, err = k.GetShardIterator(GetShardIteratorInput{
-		StreamName: streamName,
-		ShardId: shardId,
+		StreamName:        streamName,
+		ShardId:           shardId,
 		ShardIteratorType: "LATEST",
 	})
 	if err != nil {
@@ -222,9 +223,9 @@ func TestGetShardIterator(t *testing.T) {
 	}
 
 	shardIteratorOutput, err = k.GetShardIterator(GetShardIteratorInput{
-		StreamName: streamName,
-		ShardId: shardId,
-		ShardIteratorType: "AT_SEQUENCE_NUMBER",
+		StreamName:             streamName,
+		ShardId:                shardId,
+		ShardIteratorType:      "AT_SEQUENCE_NUMBER",
 		StartingSequenceNumber: allRecords[2].SequenceNumber,
 	})
 	if err != nil {
@@ -239,5 +240,34 @@ func TestGetShardIterator(t *testing.T) {
 
 	if len(recordsOutput.Records) != 3 {
 		t.Fatal("records found", len(recordsOutput.Records))
+	}
+}
+
+func TestClip(t *testing.T) {
+
+	records := []APIRecord{
+		{ApproximateArrivalTimestamp: 5},
+		{ApproximateArrivalTimestamp: 10},
+		{ApproximateArrivalTimestamp: 15},
+	}
+
+	records = clip(records, 3)
+	if len(records) != 3 {
+		t.Fatal("bad clip")
+	}
+
+	records = clip(records, 5)
+	if len(records) != 3 {
+		t.Fatal("bad clip")
+	}
+
+	records = clip(records, 7)
+	if len(records) != 2 {
+		t.Fatal("bad clip")
+	}
+
+	records = clip(records, 20)
+	if len(records) != 0 {
+		t.Fatal("bad clip")
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +20,7 @@ import (
 )
 
 func main() {
-	port := flag.Int("port", 0, "Enable Kinesis service")
+	addr := flag.String("addr", "localhost:4569", "Address to run on")
 
 	enableKinesis := flag.Bool("enableKinesis", true, "Enable Kinesis service")
 	kinesisInitialStreams := flag.String("kinesisInitialStreams", "",
@@ -59,7 +58,6 @@ func main() {
 		log.Println("Enabled KMS")
 	}
 
-	addr := ":" + strconv.Itoa(*port)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf, err := io.ReadAll(r.Body)
@@ -86,14 +84,9 @@ func main() {
 
 	h2s := &http2.Server{}
 	h1s := &http.Server{
-		Addr:    addr,
+		Addr:    *addr,
 		Handler: h2c.NewHandler(handler, h2s),
 	}
-
-	go func() {
-		time.Sleep(time.Second)
-		log.Println("Server is up")
-	}()
 
 	err := h1s.ListenAndServe()
 	if err != nil {

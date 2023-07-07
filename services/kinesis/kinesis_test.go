@@ -1,10 +1,11 @@
 package kinesis
 
 import (
-	//"slices"
 	"strconv"
 	"testing"
 	"time"
+
+	"golang.org/x/exp/slices"
 
 	"aws-in-a-box/arn"
 )
@@ -97,7 +98,9 @@ func TestStreamTags(t *testing.T) {
 	if len(tags) != 2 {
 		t.Fatal("Wrong tags")
 	}
-	//slices.Sort(output.Tags)
+	slices.SortFunc(output.Tags, func(t1, t2 APITag) bool {
+		return t1.Key < t2.Key
+	})
 	if tags[0].Key != "k1" || tags[0].Value != "v1" {
 		t.Fatal("Wrong tags")
 	}

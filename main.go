@@ -25,6 +25,8 @@ func main() {
 	enableKinesis := flag.Bool("enableKinesis", true, "Enable Kinesis service")
 	kinesisInitialStreams := flag.String("kinesisInitialStreams", "",
 		"Streams to create at startup. Example: stream1,stream2,stream3")
+	kinesisInitialShardsPerStream := flag.Int64("kinesisInitialShardsPerStream", 2,
+		"How many shards to create for each stream listed in -kinesisInitialStreams")
 	kinesisDefaultDuration := flag.Duration("kinesisDefaultDuration", 24*time.Hour,
 		"How long to retain messages. Can be used to control memory usage. After creation, retention can be adjusted with [Increase/Decrease]StreamRetentionPeriod")
 
@@ -45,7 +47,7 @@ func main() {
 		for _, name := range strings.Split(*kinesisInitialStreams, ",") {
 			k.CreateStream(kinesis.CreateStreamInput{
 				StreamName: name,
-				ShardCount: 20,
+				ShardCount: *kinesisInitialShardsPerStream,
 			})
 		}
 		k.RegisterHTTPHandlers(methodRegistry)

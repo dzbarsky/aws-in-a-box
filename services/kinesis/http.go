@@ -16,4 +16,5 @@ func (k *Kinesis) RegisterHTTPHandlers(methodRegistry http.Registry) {
 	http.Register(methodRegistry, service, "RemoveTagsFromStream", k.RemoveTagsFromStream)
 	http.Register(methodRegistry, service, "IncreaseStreamRetentionPeriod", k.IncreaseStreamRetentionPeriod)
 	http.Register(methodRegistry, service, "DecreaseStreamRetentionPeriod", k.DecreaseStreamRetentionPeriod)
+	http.Register(methodRegistry, service, "DescribeStreamSummary", k.DescribeStreamSummary)
 }

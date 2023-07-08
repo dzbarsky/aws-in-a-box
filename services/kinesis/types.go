@@ -81,7 +81,7 @@ type APISequenceNumberRange struct {
 }
 
 type APIRecord struct {
-	// uint64? seconds? Millis?
+	// Unix Nanos?
 	ApproximateArrivalTimestamp int64
 	Data                        string
 	PartitionKey                string
@@ -133,3 +133,27 @@ type DecreaseStreamRetentionPeriodInput struct {
 }
 
 type DecreaseStreamRetentionPeriodOutput struct{}
+
+type DescribeStreamSummaryInput struct {
+	StreamName           string
+	StreamARN            string
+}
+
+type DescribeStreamSummaryOutput struct {
+	StreamDescriptionSummary APIStreamDescriptionSummary
+}
+
+type APIStreamDescriptionSummary struct {
+	ConsumerCount int32
+	EncryptionType string
+	// EnhancedMonitoring - not implemented
+	// KeyId string - not implemened
+	OpenShardCount int
+	RetentionPeriodHours int32
+	StreamARN string
+	// Unix Nanos?
+	StreamCreationTimestamp int64
+	// StreamModeDetails - not implemented
+	StreamName string
+	StreamStatus string
+}

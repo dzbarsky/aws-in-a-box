@@ -10,22 +10,24 @@ type ErrorBody struct {
 	Message string
 }
 
-func InvalidArgumentException(message string) *Error {
+func generate400Exception(typ, message string) *Error {
 	return &Error{
 		Code: 400,
 		Body: ErrorBody{
-			Type:    "InvalidArgumentException",
+			Type:    typ,
 			Message: message,
 		},
 	}
 }
 
+func InvalidArgumentException(message string) *Error {
+	return generate400Exception("InvalidArgumentException", message)
+}
+
+func LimitExceededException(message string) *Error {
+	return generate400Exception("LimitExceededException", message)
+}
+
 func ResourceNotFoundException(message string) *Error {
-	return &Error{
-		Code: 400,
-		Body: ErrorBody{
-			Type:    "ResourceNotFoundException",
-			Message: message,
-		},
-	}
+	return generate400Exception("ResourceNotFoundException", message)
 }

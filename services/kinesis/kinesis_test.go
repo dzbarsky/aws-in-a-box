@@ -11,16 +11,17 @@ import (
 )
 
 var generator = arn.Generator{
-	AwsAccountId: "12345",
+	AwsAccountId: "123456789012",
 	Region:       "us-east-1",
 }
 
 func newKinesisWithStream() (*Kinesis, string) {
-	streamName := "stream"
+	streamName := "exampleStream"
 
 	k := New(generator, time.Hour)
 	_, err := k.CreateStream(CreateStreamInput{
 		StreamName: streamName,
+		ShardCount: 1,
 	})
 	if err != nil {
 		panic(err)

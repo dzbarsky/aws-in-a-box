@@ -135,8 +135,8 @@ type DecreaseStreamRetentionPeriodInput struct {
 type DecreaseStreamRetentionPeriodOutput struct{}
 
 type DescribeStreamSummaryInput struct {
-	StreamName           string
-	StreamARN            string
+	StreamName string
+	StreamARN  string
 }
 
 type DescribeStreamSummaryOutput struct {
@@ -144,16 +144,59 @@ type DescribeStreamSummaryOutput struct {
 }
 
 type APIStreamDescriptionSummary struct {
-	ConsumerCount int32
+	ConsumerCount  int
 	EncryptionType string
 	// EnhancedMonitoring - not implemented
 	// KeyId string - not implemened
-	OpenShardCount int
+	OpenShardCount       int
 	RetentionPeriodHours int32
-	StreamARN string
+	StreamARN            string
 	// Unix Nanos?
 	StreamCreationTimestamp int64
 	// StreamModeDetails - not implemented
-	StreamName string
+	StreamName   string
 	StreamStatus string
+}
+
+type RegisterStreamConsumerInput struct {
+	ConsumerName string
+	StreamARN    string
+}
+
+type RegisterStreamConsumerOutput struct {
+	Consumer APIConsumer
+}
+
+type APIConsumer struct {
+	ConsumerARN               string
+	ConsumerCreationTimestamp int64
+	ConsumerName              string
+	ConsumerStatus            string
+}
+
+type DeregisterStreamConsumerInput struct {
+	ConsumerARN  string
+	ConsumerName string
+	StreamARN    string
+}
+
+type DeregisterStreamConsumerOutput struct{}
+
+type DescribeStreamConsumerInput struct {
+	ConsumerARN  string
+	ConsumerName string
+	StreamARN    string
+}
+
+type DescribeStreamConsumerOutput struct {
+	ConsumerDescription APIConsumerDescription
+}
+
+type APIConsumerDescription struct {
+	ConsumerARN string
+	// Unix Nanos?
+	ConsumerCreationTimestamp int64
+	ConsumerName              string
+	ConsumerStatus            string
+	StreamARN                 string
 }

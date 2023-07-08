@@ -38,7 +38,7 @@ func main() {
 
 	arnGenerator := arn.Generator{
 		// TODO: make these configurable?
-		AwsAccountId: "12345",
+		AwsAccountId: "123456789012",
 		Region:       "us-east-1",
 	}
 
@@ -59,7 +59,6 @@ func main() {
 		k.RegisterHTTPHandlers(methodRegistry)
 		log.Println("Enabled KMS")
 	}
-
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf, err := io.ReadAll(r.Body)

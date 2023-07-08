@@ -200,3 +200,29 @@ type APIConsumerDescription struct {
 	ConsumerStatus            string
 	StreamARN                 string
 }
+
+type SubscribeToShardInput struct {
+	ConsumerARN      string
+	ShardId          string
+	StartingPosition APIStartingPosition
+}
+
+type APIStartingPosition struct {
+	Type           string
+	SequenceNumber string
+	// A time stamp is the Unix epoch date with precision in milliseconds.
+	// need to fix these!
+	Timestamp int64
+}
+
+type SubscribeToShardOutput struct {
+	EventStream struct {
+		SubscribeToShardEvent APISubscribeToShardEvent
+	}
+}
+
+type APISubscribeToShardEvent struct {
+	ContinuationSequenceNumber string
+	MillisBehindLatest         int32
+	Records                    []APIRecord
+}

@@ -1,20 +1,14 @@
 package main
 
 import (
-	"bytes"
 	"flag"
-	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid/v5"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-
 	"aws-in-a-box/arn"
+	"aws-in-a-box/server"
 	"aws-in-a-box/services/kinesis"
 	"aws-in-a-box/services/kms"
 )
@@ -60,36 +54,10 @@ func main() {
 		log.Println("Enabled KMS")
 	}
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		buf, err := io.ReadAll(r.Body)
-		if err != nil {
-			log.Print("bodyErr ", err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		r.Body = io.NopCloser(bytes.NewBuffer(buf))
+	srv := server.New(methodRegistry)
+	srv.Addr = *addr
 
-		// The target endpoint is specified in the `X-Amz-Target` header.
-		target := r.Header.Get("X-Amz-Target")
-		log.Println(r.Method, r.URL.String(), target) //, r.Body)
-
-		w.Header().Add("x-amzn-RequestId", uuid.Must(uuid.NewV4()).String())
-		method, ok := methodRegistry[target]
-		if !ok {
-			fmt.Println("NOT FOUND")
-			w.WriteHeader(404)
-			return
-		}
-		method(w, r)
-	})
-
-	h2s := &http2.Server{}
-	h1s := &http.Server{
-		Addr:    *addr,
-		Handler: h2c.NewHandler(handler, h2s),
-	}
-
-	err := h1s.ListenAndServe()
+	err := srv.ListenAndServe()
 	if err != nil {
 		panic(err)
 	}

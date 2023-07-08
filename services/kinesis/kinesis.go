@@ -31,6 +31,8 @@ type Shard struct {
 	EndingSequenceNumber   int64
 
 	Records []APIRecord
+
+	ConsumerChans map[chan *SubscribeToShardOutput]struct{}
 }
 
 type Consumer struct {
@@ -38,6 +40,13 @@ type Consumer struct {
 	Name              string
 	StreamName        string
 	CreationTimestamp int64
+
+	ConsumerChansByShardId map[string]consumerSubscription
+}
+
+type consumerSubscription struct {
+	CreationTime time.Time
+	Chan         chan *SubscribeToShardOutput
 }
 
 type Stream struct {
@@ -146,6 +155,7 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (*CreateStreamOutput, *a
 			EndingHashKey:          end,
 			StartingSequenceNumber: sequenceNumber,
 			EndingSequenceNumber:   sequenceNumber,
+			ConsumerChans:          make(map[chan *SubscribeToShardOutput]struct{}),
 		})
 	}
 

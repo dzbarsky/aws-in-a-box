@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"aws-in-a-box/arn"
 	"aws-in-a-box/awserrors"
 )
@@ -48,10 +50,11 @@ func (k *Kinesis) RegisterStreamConsumer(input RegisterStreamConsumerInput) (*Re
 		fmt.Sprintf("%s/consumer/%s:%d", stream.Name, input.ConsumerName, now))
 
 	c := &Consumer{
-		ARN:               arn,
-		Name:              input.ConsumerName,
-		CreationTimestamp: now,
-		StreamName:        stream.Name,
+		ARN:                    arn,
+		Name:                   input.ConsumerName,
+		CreationTimestamp:      now,
+		StreamName:             stream.Name,
+		ConsumerChansByShardId: make(map[string]consumerSubscription),
 	}
 	stream.Consumers[input.ConsumerName] = c
 	k.consumersByARN[arn] = c
@@ -135,4 +138,80 @@ func (k *Kinesis) DescribeStreamConsumer(input DescribeStreamConsumerInput) (*De
 			StreamARN:                 k.arnForStream(c.StreamName),
 		},
 	}, nil
+}
+
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_SubscribeToShard.html
+func (k *Kinesis) SubscribeToShard(input SubscribeToShardInput) (chan *SubscribeToShardOutput, *awserrors.Error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	c := k.consumersByARN[input.ConsumerARN]
+	if c == nil {
+		return nil, awserrors.ResourceNotFoundException("")
+	}
+
+	shard, err := k.lockedGetShard(c.StreamName, input.ShardId)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	subscription, ok := c.ConsumerChansByShardId[input.ShardId]
+	if ok {
+		if subscription.CreationTime.Sub(now) < 5*time.Second {
+			return nil, awserrors.ResourceInUseException("")
+		} else {
+			ch := subscription.Chan
+			close(subscription.Chan)
+			delete(shard.ConsumerChans, ch)
+		}
+	}
+
+	index := 0
+	switch input.StartingPosition.Type {
+	case "TRIM_HORIZON":
+	case "LATEST":
+		index = len(shard.Records)
+	case "AT_SEQUENCE_NUMBER":
+		for i, record := range shard.Records {
+			if record.SequenceNumber >= input.StartingPosition.SequenceNumber {
+				index = i
+				break
+			}
+		}
+	case "AFTER_SEQUENCE_NUMBER":
+		for i, record := range shard.Records {
+			if record.SequenceNumber > input.StartingPosition.SequenceNumber {
+				index = i
+				break
+			}
+		}
+	case "AT_TIMESTAMP":
+		panic("Unsupported, need to work out timestamps")
+	}
+
+	msg := &SubscribeToShardOutput{}
+	msg.EventStream.SubscribeToShardEvent.Records = slices.Clone(shard.Records[index:])
+
+	fmt.Println("Returning", msg)
+	outputChan := make(chan *SubscribeToShardOutput, 1)
+	outputChan <- msg
+
+	shard.ConsumerChans[outputChan] = struct{}{}
+	c.ConsumerChansByShardId[input.ShardId] = consumerSubscription{
+		CreationTime: now,
+		Chan:         outputChan,
+	}
+	go func() {
+		//time.Sleep(5 * time.Minute)
+		time.Sleep(2 * time.Second)
+
+		k.mu.Lock()
+		defer k.mu.Unlock()
+		close(outputChan)
+		delete(shard.ConsumerChans, outputChan)
+		delete(c.ConsumerChansByShardId, input.ShardId)
+	}()
+
+	return outputChan, nil
 }

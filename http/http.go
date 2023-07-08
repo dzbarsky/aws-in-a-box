@@ -100,3 +100,32 @@ func Register[Input any, Output any](
 		writeResponse(w, output, awserr, contentType)
 	}
 }
+
+func RegisterOutputStream[Input any, Output any](
+	registry map[string]http.HandlerFunc,
+	service string,
+	method string,
+	handler func(input Input) (chan *Output, *awserrors.Error),
+) {
+	registry[service+"."+method] = func(w http.ResponseWriter, r *http.Request) {
+
+		contentType := r.Header.Get("Content-Type")
+
+		var input Input
+		err := strictUnmarshal(r.Body, contentType, &input)
+		if err != nil {
+			panic(fmt.Errorf("%s: %v", method, err))
+		}
+
+		outputCh, awserr := handler(input)
+		if awserr != nil {
+			writeResponse(w, nil, awserr, contentType)
+			return
+		}
+
+		for output := range outputCh {
+			fmt.Println("writing output")
+			writeResponse(w, output, nil, contentType)
+		}
+	}
+}

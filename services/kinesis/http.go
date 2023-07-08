@@ -20,4 +20,5 @@ func (k *Kinesis) RegisterHTTPHandlers(methodRegistry http.Registry) {
 	http.Register(methodRegistry, service, "PutRecord", k.PutRecord)
 	http.Register(methodRegistry, service, "RegisterStreamConsumer", k.RegisterStreamConsumer)
 	http.Register(methodRegistry, service, "RemoveTagsFromStream", k.RemoveTagsFromStream)
+	http.RegisterOutputStream(methodRegistry, service, "SubscribeToShard", k.SubscribeToShard)
 }

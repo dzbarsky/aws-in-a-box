@@ -31,3 +31,7 @@ func LimitExceededException(message string) *Error {
 func ResourceNotFoundException(message string) *Error {
 	return generate400Exception("ResourceNotFoundException", message)
 }
+
+func ResourceInUseException(message string) *Error {
+	return generate400Exception("ResourceInUseException", message)
+}

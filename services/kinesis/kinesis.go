@@ -34,6 +34,11 @@ type Shard struct {
 }
 
 type Stream struct {
+	// Immutable
+	Name string
+	CreationTimestamp int64
+
+	// Mutable
 	Retention time.Duration
 	Shards    []*Shard
 	Tags      map[string]string
@@ -102,6 +107,8 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (*CreateStreamOutput, *a
 	}
 
 	stream := &Stream{
+		Name: input.StreamName,
+		CreationTimestamp: time.Now().UnixNano(),
 		Tags: make(map[string]string),
 	}
 
@@ -428,6 +435,37 @@ func (k *Kinesis) DecreaseStreamRetentionPeriod(input DecreaseStreamRetentionPer
 	// TODO(zbarsky): validation
 	stream.Retention = time.Duration(input.RetentionPeriodHours) * time.Hour
 	return nil, nil
+}
+
+
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_DescribeStreamSummary.html
+func (k *Kinesis) DescribeStreamSummary(input DescribeStreamSummaryInput) (*DescribeStreamSummaryOutput, *awserrors.Error) {
+	streamName := input.StreamName
+	if streamName == "" {
+		_, streamName = arn.ExtractId(input.StreamARN)
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	stream, ok := k.streams[streamName]
+	if !ok {
+		return nil, awserrors.ResourceNotFoundException("")
+	}
+
+	return &DescribeStreamSummaryOutput{
+		StreamSummaryDescription: APIStreamSummaryDescription{
+			ConsumerCount: 0, // TODO
+			EncryptionType: "NONE", // TODO
+			OpenShardCount: len(stream.Shards),
+			RetentionPeriodHours: int32(stream.Retention / time.Hour),
+			StreamARN: k.arnGenerator.Generate("kinesis", "stream", stream.Name),
+			StreamCreationTimestamp: stream.CreationTimestamp,
+			StreamName: stream.Name,
+			// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_StreamDescriptionSummary.html#Streams-Type-StreamDescriptionSummary-StreamStatus
+			StreamStatus: "ACTIVE", // TODO
+		},
+	}, nil
 }
 
 // These are complete HAX, they probably need to be more legit

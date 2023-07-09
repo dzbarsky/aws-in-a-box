@@ -55,10 +55,10 @@ type Stream struct {
 	CreationTimestamp int64
 
 	// Mutable
-	Retention time.Duration
-	Shards    []*Shard
-	Tags      map[string]string
-	Consumers map[string]*Consumer
+	Retention       time.Duration
+	Shards          []*Shard
+	Tags            map[string]string
+	consumersByName map[string]*Consumer
 }
 
 type Kinesis struct {
@@ -128,7 +128,7 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (*CreateStreamOutput, *a
 	stream := &Stream{
 		Name:              input.StreamName,
 		CreationTimestamp: time.Now().UnixNano(),
-		Consumers:         make(map[string]*Consumer),
+		consumersByName:   make(map[string]*Consumer),
 		Tags:              make(map[string]string),
 	}
 
@@ -484,7 +484,7 @@ func (k *Kinesis) DescribeStreamSummary(input DescribeStreamSummaryInput) (*Desc
 
 	return &DescribeStreamSummaryOutput{
 		StreamDescriptionSummary: APIStreamDescriptionSummary{
-			ConsumerCount:           len(stream.Consumers),
+			ConsumerCount:           len(stream.consumersByName),
 			EncryptionType:          "NONE", // TODO
 			OpenShardCount:          len(stream.Shards),
 			RetentionPeriodHours:    int32(stream.Retention / time.Hour),

@@ -35,11 +35,11 @@ func (k *Kinesis) RegisterStreamConsumer(input RegisterStreamConsumerInput) (*Re
 		return nil, awserrors.ResourceNotFoundException("")
 	}
 
-	if len(stream.Consumers) >= 20 {
+	if len(stream.consumersByName) >= 20 {
 		return nil, awserrors.LimitExceededException("")
 	}
 
-	if _, ok := stream.Consumers[input.ConsumerName]; ok {
+	if _, ok := stream.consumersByName[input.ConsumerName]; ok {
 		return nil, XXXTodoException("Consumer already exists")
 	}
 
@@ -56,7 +56,7 @@ func (k *Kinesis) RegisterStreamConsumer(input RegisterStreamConsumerInput) (*Re
 		StreamName:             stream.Name,
 		ConsumerChansByShardId: make(map[string]consumerSubscription),
 	}
-	stream.Consumers[input.ConsumerName] = c
+	stream.consumersByName[input.ConsumerName] = c
 	k.consumersByARN[arn] = c
 
 	return &RegisterStreamConsumerOutput{
@@ -86,7 +86,7 @@ func (k *Kinesis) lockedGetConsumer(
 			return nil, awserrors.ResourceNotFoundException("No such stream")
 		}
 
-		byName = stream.Consumers[consumerName]
+		byName = stream.consumersByName[consumerName]
 	}
 
 	if byArn == nil && byName == nil {
@@ -115,7 +115,7 @@ func (k *Kinesis) DeregisterStreamConsumer(input DeregisterStreamConsumerInput) 
 	}
 
 	delete(k.consumersByARN, c.ARN)
-	delete(k.streams[c.StreamName].Consumers, c.Name)
+	delete(k.streams[c.StreamName].consumersByName, c.Name)
 	return nil, nil
 }
 

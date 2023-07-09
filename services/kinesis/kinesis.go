@@ -32,7 +32,7 @@ type Shard struct {
 
 	Records []APIRecord
 
-	ConsumerChans map[chan *SubscribeToShardOutput]struct{}
+	ConsumerChans map[chan *APISubscribeToShardEvent]struct{}
 }
 
 type Consumer struct {
@@ -46,7 +46,7 @@ type Consumer struct {
 
 type consumerSubscription struct {
 	CreationTime time.Time
-	Chan         chan *SubscribeToShardOutput
+	Chan         chan *APISubscribeToShardEvent
 }
 
 type Stream struct {
@@ -155,7 +155,7 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (*CreateStreamOutput, *a
 			EndingHashKey:          end,
 			StartingSequenceNumber: sequenceNumber,
 			EndingSequenceNumber:   sequenceNumber,
-			ConsumerChans:          make(map[chan *SubscribeToShardOutput]struct{}),
+			ConsumerChans:          make(map[chan *APISubscribeToShardEvent]struct{}),
 		})
 	}
 
@@ -210,12 +210,21 @@ func (k *Kinesis) PutRecord(input PutRecordInput) (*PutRecordOutput, *awserrors.
 		if hashKey.Cmp(&shard.EndingHashKey) <= 0 && hashKey.Cmp(&shard.StartingHashKey) >= 0 {
 			timestamp := time.Now().UnixNano()
 			sequenceNumber := i64toA(timestamp)
-			shard.Records = append(shard.Records, APIRecord{
+			record := APIRecord{
 				ApproximateArrivalTimestamp: timestamp,
 				Data:                        input.Data,
 				PartitionKey:                input.PartitionKey,
 				SequenceNumber:              sequenceNumber,
-			})
+			}
+			shard.Records = append(shard.Records, record)
+
+			for ch := range shard.ConsumerChans {
+				ch <- &APISubscribeToShardEvent{
+					Records:                    []APIRecord{record},
+					ContinuationSequenceNumber: sequenceNumber,
+				}
+			}
+
 			return &PutRecordOutput{
 				ShardId:        shard.Id,
 				SequenceNumber: sequenceNumber,

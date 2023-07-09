@@ -141,7 +141,7 @@ func (k *Kinesis) DescribeStreamConsumer(input DescribeStreamConsumerInput) (*De
 }
 
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_SubscribeToShard.html
-func (k *Kinesis) SubscribeToShard(input SubscribeToShardInput) (chan *SubscribeToShardOutput, *awserrors.Error) {
+func (k *Kinesis) SubscribeToShard(input SubscribeToShardInput) (chan *APISubscribeToShardEvent, *awserrors.Error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
@@ -190,12 +190,11 @@ func (k *Kinesis) SubscribeToShard(input SubscribeToShardInput) (chan *Subscribe
 		panic("Unsupported, need to work out timestamps")
 	}
 
-	msg := &SubscribeToShardOutput{}
-	msg.EventStream.SubscribeToShardEvent.Records = slices.Clone(shard.Records[index:])
-
-	fmt.Println("Returning", msg)
-	outputChan := make(chan *SubscribeToShardOutput, 1)
-	outputChan <- msg
+	outputChan := make(chan *APISubscribeToShardEvent, 1)
+	outputChan <- &APISubscribeToShardEvent{
+		Records:                    slices.Clone(shard.Records[index:]),
+		ContinuationSequenceNumber: shard.Records[len(shard.Records)-1].SequenceNumber,
+	}
 
 	shard.ConsumerChans[outputChan] = struct{}{}
 	c.ConsumerChansByShardId[input.ShardId] = consumerSubscription{
@@ -203,8 +202,7 @@ func (k *Kinesis) SubscribeToShard(input SubscribeToShardInput) (chan *Subscribe
 		Chan:         outputChan,
 	}
 	go func() {
-		//time.Sleep(5 * time.Minute)
-		time.Sleep(2 * time.Second)
+		time.Sleep(5 * time.Minute)
 
 		k.mu.Lock()
 		defer k.mu.Unlock()

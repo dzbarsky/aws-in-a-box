@@ -2,7 +2,7 @@ package awserrors
 
 type Error struct {
 	Code int
-	Body any
+	Body ErrorBody
 }
 
 type ErrorBody struct {

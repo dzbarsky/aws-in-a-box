@@ -1,8 +1,8 @@
 package itest
 
 import (
+	"bytes"
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"testing"
@@ -42,7 +42,13 @@ func makeClientServerPair() (*kinesis.Client, *http.Server) {
 func TestSubscribeToShard(t *testing.T) {
 	ctx := context.Background()
 	client, srv := makeClientServerPair()
-	defer srv.Shutdown(ctx)
+	defer func() {
+		// The shutdown is blocked by the 5-minute connection timeout.
+		// Not sure how to handle this properly yet, but we don't want the
+		// test to hang.
+		ctx, _ := context.WithTimeout(ctx, 1*time.Millisecond)
+		srv.Shutdown(ctx)
+	}()
 
 	streamName := aws.String("stream")
 	_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
@@ -52,13 +58,17 @@ func TestSubscribeToShard(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	stream, err := client.DescribeStreamSummary(ctx, &kinesis.DescribeStreamSummaryInput{
+
+	streamSummary, err := client.DescribeStreamSummary(ctx, &kinesis.DescribeStreamSummaryInput{
 		StreamName: streamName,
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	consumerName := aws.String("consumer")
 	consumer, err := client.RegisterStreamConsumer(ctx, &kinesis.RegisterStreamConsumerInput{
-		StreamARN:    stream.StreamDescriptionSummary.StreamARN,
+		StreamARN:    streamSummary.StreamDescriptionSummary.StreamARN,
 		ConsumerName: consumerName,
 	})
 	if err != nil {
@@ -66,7 +76,7 @@ func TestSubscribeToShard(t *testing.T) {
 	}
 
 	_, err = client.PutRecord(ctx, &kinesis.PutRecordInput{
-		StreamARN:    stream.StreamDescriptionSummary.StreamARN,
+		StreamARN:    streamSummary.StreamDescriptionSummary.StreamARN,
 		Data:         []byte("hello"),
 		PartitionKey: aws.String("1"),
 	})
@@ -91,10 +101,33 @@ func TestSubscribeToShard(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	stream := subscription.GetStream()
 
-	for event := range subscription.GetStream().Events() {
-		fmt.Println(event)
+	const maxMessageData = 5
+	go func() {
+		for i := 0; i <= maxMessageData; i++ {
+			_, err := client.PutRecord(ctx, &kinesis.PutRecordInput{
+				StreamARN:    streamSummary.StreamDescriptionSummary.StreamARN,
+				Data:         []byte{byte(i)},
+				PartitionKey: aws.String("1"),
+			})
+			if err != nil {
+				panic(err)
+			}
+		}
+	}()
+
+	for {
+		e := <-stream.Events()
+		event := e.(*types.SubscribeToShardEventStreamMemberSubscribeToShardEvent).Value
+		for _, record := range event.Records {
+			if bytes.Equal(record.Data, []byte{maxMessageData}) {
+				err = stream.Close()
+				if err != nil {
+					panic(err)
+				}
+				return
+			}
+		}
 	}
-
-	panic("frick")
 }

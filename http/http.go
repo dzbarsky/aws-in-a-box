@@ -2,11 +2,14 @@ package http
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/fxamacker/cbor/v2"
 
@@ -34,7 +37,7 @@ func strictUnmarshal(r io.Reader, contentType string, target any) error {
 		}
 		err = decoder.Decode(target)
 		if err != io.EOF {
-			return errors.New("Unexpected more JSON?")
+			return errors.New("unexpected more JSON?")
 		}
 	case cborContentType:
 		decoder, err := cbor.DecOptions{
@@ -101,6 +104,8 @@ func Register[Input any, Output any](
 	}
 }
 
+const binaryDataTypeString = 7
+
 func RegisterOutputStream[Input any, Output any](
 	registry map[string]http.HandlerFunc,
 	service string,
@@ -118,14 +123,67 @@ func RegisterOutputStream[Input any, Output any](
 		}
 
 		outputCh, awserr := handler(input)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write(encodeEvent("initial-response", nil, awserr))
+		w.(http.Flusher).Flush()
 		if awserr != nil {
-			writeResponse(w, nil, awserr, contentType)
 			return
 		}
 
 		for output := range outputCh {
-			fmt.Println("writing output")
-			writeResponse(w, output, nil, contentType)
+			data, err := json.Marshal(output)
+			if err != nil {
+				panic(err)
+			}
+			data = encodeEvent(method+"Event", data, nil)
+			w.Write(data)
+			w.(http.Flusher).Flush()
 		}
 	}
+}
+
+func mustCRC(data []byte) uint32 {
+	crc := crc32.NewIEEE()
+	_, err := crc.Write(data)
+	if err != nil {
+		panic(err)
+	}
+	return crc.Sum32()
+}
+
+func encodeEvent(eventType string, serializedEvent []byte, awserr *awserrors.Error) []byte {
+	// AWS has a custom binary event encoding.
+	// See https://docs.aws.amazon.com/AmazonS3/latest/API/RESTSelectObjectAppendix.html
+	headers := map[string]string{
+		":event-type": eventType,
+	}
+	if awserr != nil {
+		headers[":message-type"] = "error"
+		headers[":error-message"] = awserr.Body.Message
+		headers[":error-code"] = strconv.Itoa(awserr.Code)
+	} else {
+		headers[":message-type"] = "event"
+	}
+
+	var headersBuf []byte
+	for k, v := range headers {
+		headersBuf = append(headersBuf, byte(len(k)))
+		headersBuf = append(headersBuf, k...)
+		headersBuf = append(headersBuf, binaryDataTypeString)
+		headersBuf = binary.BigEndian.AppendUint16(headersBuf, uint16(len(v)))
+		headersBuf = append(headersBuf, v...)
+	}
+
+	headersLen := len(headersBuf)
+	payloadLen := len(serializedEvent)
+
+	finalBuf := binary.BigEndian.AppendUint32(nil, uint32(headersLen+payloadLen+16))
+	finalBuf = binary.BigEndian.AppendUint32(finalBuf, uint32(headersLen))
+	finalBuf = binary.BigEndian.AppendUint32(finalBuf, mustCRC(finalBuf))
+	finalBuf = append(finalBuf, headersBuf...)
+	finalBuf = append(finalBuf, serializedEvent...)
+	finalBuf = binary.BigEndian.AppendUint32(finalBuf, mustCRC(finalBuf))
+
+	return finalBuf
 }

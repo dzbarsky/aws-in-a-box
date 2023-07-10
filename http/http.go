@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	jsonContentType = "application/x-amz-json-1.1"
-	cborContentType = "application/x-amz-cbor-1.1"
+	jsonContentType10 = "application/x-amz-json-1.0"
+	jsonContentType11 = "application/x-amz-json-1.1"
+	cborContentType   = "application/x-amz-cbor-1.1"
 )
 
 func strictUnmarshal(r io.Reader, contentType string, target any) error {
@@ -28,7 +29,7 @@ func strictUnmarshal(r io.Reader, contentType string, target any) error {
 	}
 
 	switch contentType {
-	case jsonContentType:
+	case jsonContentType10, jsonContentType11:
 		decoder := json.NewDecoder(bytes.NewBuffer(data))
 		decoder.DisallowUnknownFields()
 		err := decoder.Decode(target)
@@ -69,9 +70,12 @@ func writeResponse(w http.ResponseWriter, output any, awserr *awserrors.Error, c
 		return
 	}
 
-	marshalFunc := cbor.Marshal
-	if contentType == jsonContentType {
+	var marshalFunc func(v any) ([]byte, error)
+	switch contentType {
+	case jsonContentType10, jsonContentType11:
 		marshalFunc = json.Marshal
+	case cborContentType:
+		marshalFunc = cbor.Marshal
 	}
 
 	data, err := marshalFunc(output)

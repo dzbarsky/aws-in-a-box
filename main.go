@@ -9,6 +9,7 @@ import (
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/server"
+	"aws-in-a-box/services/dynamodb"
 	"aws-in-a-box/services/kinesis"
 	"aws-in-a-box/services/kms"
 )
@@ -25,6 +26,8 @@ func main() {
 		"How long to retain messages. Can be used to control memory usage. After creation, retention can be adjusted with [Increase/Decrease]StreamRetentionPeriod")
 
 	enableKMS := flag.Bool("enableKMS", true, "Enable Kinesis service")
+
+	enableDynamoDB := flag.Bool("experimental_enableDynamoDB", true, "Enable DynamoDB service")
 
 	flag.Parse()
 
@@ -52,6 +55,12 @@ func main() {
 		k := kms.New(arnGenerator)
 		k.RegisterHTTPHandlers(methodRegistry)
 		log.Println("Enabled KMS")
+	}
+
+	if *enableDynamoDB {
+		d := dynamodb.New(arnGenerator)
+		d.RegisterHTTPHandlers(methodRegistry)
+		log.Println("Enabled DynamoDB (EXPERIMENTAL!!!)")
 	}
 
 	srv := server.New(methodRegistry)

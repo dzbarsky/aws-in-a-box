@@ -35,3 +35,7 @@ func ResourceNotFoundException(message string) *Error {
 func ResourceInUseException(message string) *Error {
 	return generate400Exception("ResourceInUseException", message)
 }
+
+func XXX_TODO(message string) *Error {
+	return generate400Exception("XXX_TODO", message)
+}

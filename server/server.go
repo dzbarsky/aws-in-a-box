@@ -24,7 +24,7 @@ func New(methodRegistry map[string]http.HandlerFunc) *http.Server {
 
 		// The target endpoint is specified in the `X-Amz-Target` header.
 		target := r.Header.Get("X-Amz-Target")
-		log.Println(r.Method, r.URL.String(), target) //, r.Body)
+		//log.Println(r.Method, r.URL.String(), target) //, r.Body)
 
 		w.Header().Add("x-amzn-RequestId", uuid.Must(uuid.NewV4()).String())
 		method, ok := methodRegistry[target]

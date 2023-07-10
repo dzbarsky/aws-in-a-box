@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -48,19 +47,19 @@ func main() {
 			})
 		}
 		k.RegisterHTTPHandlers(methodRegistry)
-		log.Println("Enabled Kinesis")
+		//log.Println("Enabled Kinesis")
 	}
 
 	if *enableKMS {
 		k := kms.New(arnGenerator)
 		k.RegisterHTTPHandlers(methodRegistry)
-		log.Println("Enabled KMS")
+		//log.Println("Enabled KMS")
 	}
 
 	if *enableDynamoDB {
 		d := dynamodb.New(arnGenerator)
 		d.RegisterHTTPHandlers(methodRegistry)
-		log.Println("Enabled DynamoDB (EXPERIMENTAL!!!)")
+		//log.Println("Enabled DynamoDB (EXPERIMENTAL!!!)")
 	}
 
 	srv := server.New(methodRegistry)

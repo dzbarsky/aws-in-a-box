@@ -1,7 +1,6 @@
 package dynamodb
 
 import (
-	"fmt"
 	"reflect"
 	"sync"
 
@@ -78,7 +77,7 @@ func (d *DynamoDB) CreateTable(input CreateTableInput) (*CreateTableOutput, *aws
 	}
 	d.tablesByName[input.TableName] = t
 
-	fmt.Println("CreateTable", input)
+	//fmt.Println("CreateTable", input)
 	return &CreateTableOutput{
 		TableDescription: t.toAPI(),
 	}, nil

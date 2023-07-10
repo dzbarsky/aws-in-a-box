@@ -188,7 +188,7 @@ func (k *Kinesis) PutRecord(input PutRecordInput) (*PutRecordOutput, *awserrors.
 		_, streamName = arn.ExtractId(input.StreamARN)
 	}
 
-	fmt.Println("PutRecord", streamName)
+	//fmt.Println("PutRecord", streamName)
 
 	var hashKey big.Int
 	if input.ExplicitHashKey != "" {
@@ -252,7 +252,7 @@ func (k *Kinesis) lockedGetShard(streamName, shardId string) (*Shard, *awserrors
 
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_GetRecords.html
 func (k *Kinesis) GetRecords(input GetRecordsInput) (*GetRecordsOutput, *awserrors.Error) {
-	fmt.Println("GetRecords", input.ShardIterator)
+	//fmt.Println("GetRecords", input.ShardIterator)
 
 	streamName, shardId, start, err := decodeShardIterator(input.ShardIterator)
 	if err != nil {
@@ -278,7 +278,7 @@ func (k *Kinesis) GetRecords(input GetRecordsInput) (*GetRecordsOutput, *awserro
 	}
 
 	output.NextShardIterator = encodeShardIterator(streamName, shardId, currIndex)
-	fmt.Println("READ RECORDS", input.ShardIterator, output.NextShardIterator)
+	//fmt.Println("READ RECORDS", input.ShardIterator, output.NextShardIterator)
 	return output, nil
 }
 
@@ -289,7 +289,7 @@ func (k *Kinesis) GetShardIterator(input GetShardIteratorInput) (*GetShardIterat
 		_, streamName = arn.ExtractId(input.StreamARN)
 	}
 
-	fmt.Println("GetShardIterator", streamName, input)
+	//fmt.Println("GetShardIterator", streamName, input)
 
 	output := &GetShardIteratorOutput{}
 	switch input.ShardIteratorType {
@@ -328,7 +328,7 @@ func (k *Kinesis) ListShards(input ListShardsInput) (*ListShardsOutput, *awserro
 		_, streamName = arn.ExtractId(input.StreamARN)
 	}
 
-	fmt.Println("ListShards", streamName)
+	//fmt.Println("ListShards", streamName)
 
 	k.mu.Lock()
 	defer k.mu.Unlock()

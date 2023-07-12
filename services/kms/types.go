@@ -1,8 +1,10 @@
 package kms
 
 type CreateKeyInput struct {
-	KeySpec string
-	Tags    []APITag
+	Description           string
+	CustomerMasterKeySpec string
+	KeySpec               string
+	Tags                  []APITag
 }
 
 type CreateKeyOutput struct {

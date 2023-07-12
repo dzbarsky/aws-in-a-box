@@ -2,6 +2,7 @@ package kms
 
 import (
 	"bytes"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -332,5 +333,40 @@ func TestEncryptDecrypt(t *testing.T) {
 		if !bytes.Equal(plaintext, decryptOutput.Plaintext) {
 			t.Fatalf("bad encryption result; got %v, want %v", decryptOutput.Plaintext, plaintext)
 		}
+	}
+}
+
+func TestInvalidCiphertext(t *testing.T) {
+	k, keyId := newKMSWithKey()
+	plaintext := []byte("The quick brown fox jumps over the lazy dog")
+
+	context := map[string]string{"k1": "v1", "k2": "v2"}
+	encryptOutput, err := k.Encrypt(EncryptInput{
+		KeyId:             keyId,
+		EncryptionContext: context,
+		Plaintext:         plaintext,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ciphertext := encryptOutput.CiphertextBlob
+
+	_, err = k.Decrypt(DecryptInput{
+		KeyId:          keyId,
+		CiphertextBlob: ciphertext,
+		// No context
+	})
+	if !reflect.DeepEqual(err, InvalidCiphertextException("cipher: message authentication failed")) {
+		t.Fatal("bad err", err)
+	}
+
+	_, err = k.Decrypt(DecryptInput{
+		KeyId:             keyId,
+		CiphertextBlob:    []byte("nope"),
+		EncryptionContext: context,
+	})
+	if !reflect.DeepEqual(err, InvalidCiphertextException("")) {
+		t.Fatal("bad err", err)
 	}
 }

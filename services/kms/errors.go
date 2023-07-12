@@ -32,6 +32,16 @@ func DisabledException(message string) *awserrors.Error {
 	}
 }
 
+func InvalidCiphertextException(message string) *awserrors.Error {
+	return &awserrors.Error{
+		Code: 400,
+		Body: awserrors.ErrorBody{
+			Type:    "InvalidCiphertextException",
+			Message: message,
+		},
+	}
+}
+
 func KMSInternalException(message string) *awserrors.Error {
 	return &awserrors.Error{
 		Code: 500,

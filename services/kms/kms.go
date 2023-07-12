@@ -66,7 +66,12 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 
 	var aesKey *AESKey
 
-	switch input.KeySpec {
+	keySpec := input.KeySpec
+	if keySpec == "" {
+		keySpec = input.CustomerMasterKeySpec
+	}
+
+	switch keySpec {
 	case "", "SYMMETRIC_DEFAULT":
 		aesKey = newAesKey()
 	case "HMAC_224", "HMAC_256", "HMAC_384", "HMAC_512":
@@ -304,7 +309,14 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 
 	// Opposite of Key.Encrypt
 	data := input.CiphertextBlob
+	if len(data) == 0 {
+		return nil, InvalidCiphertextException("")
+	}
+
 	keyArnLen, data := uint8(data[0]), data[1:]
+	if len(data) < 4+int(keyArnLen) {
+		return nil, InvalidCiphertextException("")
+	}
 	keyArn, data := string(data[:keyArnLen]), data[keyArnLen:]
 	version, data := binary.LittleEndian.Uint32(data[:4]), data[4:]
 
@@ -326,7 +338,7 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 
 	plaintext, err := key.Key.Decrypt(data, version, input.EncryptionContext)
 	if err != nil {
-		return nil, KMSInternalException(err.Error())
+		return nil, InvalidCiphertextException(err.Error())
 	}
 
 	return &DecryptOutput{

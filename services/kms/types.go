@@ -141,3 +141,21 @@ type APIKey struct {
 	KeyArn string
 	KeyId  string
 }
+
+type ReEncryptInput struct {
+	CiphertextBlob                 []byte
+	DestinationEncryptionAlgorithm string
+	DestinationEncryptionContext   map[string]string
+	DestinationKeyId               string
+	SourceKeyId                    string
+	SourceEncryptionAlgorithm      string
+	SourceEncryptionContext        map[string]string
+}
+
+type ReEncryptOutput struct {
+	CiphertextBlob                 []byte
+	DestinationEncryptionAlgorithm string
+	KeyId                          string
+	SourceEncryptionAlgorithm      string
+	SourceKeyId                    string
+}

@@ -471,6 +471,36 @@ func (k *KMS) ListKeys(input ListKeysInput) (*ListKeysOutput, *awserrors.Error) 
 	return output, nil
 }
 
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_ReEncrypt.html
+func (k *KMS) ReEncrypt(input ReEncryptInput) (*ReEncryptOutput, *awserrors.Error) {
+	decryptOutput, err := k.Decrypt(DecryptInput{
+		CiphertextBlob:      input.CiphertextBlob,
+		EncryptionAlgorithm: input.SourceEncryptionAlgorithm,
+		EncryptionContext:   input.SourceEncryptionContext,
+		KeyId:               input.SourceKeyId,
+	})
+	if err != nil {
+		return nil, err
+	}
+	encryptOutput, err := k.Encrypt(EncryptInput{
+		EncryptionAlgorithm: input.DestinationEncryptionAlgorithm,
+		EncryptionContext:   input.DestinationEncryptionContext,
+		KeyId:               input.DestinationKeyId,
+		Plaintext:           decryptOutput.Plaintext,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &ReEncryptOutput{
+		CiphertextBlob:                 encryptOutput.CiphertextBlob,
+		DestinationEncryptionAlgorithm: encryptOutput.EncryptionAlgorithm,
+		KeyId:                          encryptOutput.KeyId,
+		SourceEncryptionAlgorithm:      decryptOutput.EncryptionAlgorithm,
+		SourceKeyId:                    decryptOutput.KeyId,
+	}, nil
+}
+
 func isValidTagKey(tagKey string) bool {
 	if strings.HasPrefix(tagKey, "aws:") {
 		return false

@@ -6,7 +6,11 @@ import (
 )
 
 func TestSerialization(t *testing.T) {
-	key := NewAES("", "keyId", map[string]string{"tag": "value"})
+	key, err := NewAES("", "keyId", map[string]string{"tag": "value"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	data, err := key.serialize()
 	if err != nil {
 		t.Fatal(err)

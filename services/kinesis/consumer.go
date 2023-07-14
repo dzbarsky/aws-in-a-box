@@ -87,6 +87,9 @@ func (k *Kinesis) lockedGetConsumer(
 		}
 
 		byName = stream.consumersByName[consumerName]
+		if byName == nil {
+			return nil, awserrors.ResourceNotFoundException("No such consumer")
+		}
 	}
 
 	if byArn == nil && byName == nil {

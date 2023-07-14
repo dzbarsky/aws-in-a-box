@@ -91,7 +91,11 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 		if k.persistDir != "" {
 			persistPath = filepath.Join(k.persistDir, keyId+".json")
 		}
-		k.keys[keyId] = key.NewAES(persistPath, keyId, tags)
+		aesKey, err := key.NewAES(persistPath, keyId, tags)
+		if err != nil {
+			return nil, KMSInternalException(err.Error())
+		}
+		k.keys[keyId] = aesKey
 	case "HMAC_224", "HMAC_256", "HMAC_384", "HMAC_512":
 		return nil, UnsupportedOperationException("")
 	case "RSA_2048", "RSA_3072", "RSA_4096":

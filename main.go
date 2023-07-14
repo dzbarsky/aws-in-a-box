@@ -73,7 +73,7 @@ func main() {
 	}
 
 	if *enableS3 {
-		s := s3.New()
+		s := s3.New(*s3Addr)
 		for _, name := range strings.Split(*s3InitialBuckets, ",") {
 			s.CreateBucket(s3.CreateBucketInput{
 				Bucket: name,

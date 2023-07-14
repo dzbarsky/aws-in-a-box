@@ -38,3 +38,52 @@ type CopyObjectOutput struct {
 	ETag         string
 	LastModified string
 }
+
+type CreateMultipartUploadOutput struct {
+	XMLName                 xml.Name `xml:"InitiateMultipartUploadResult"`
+	Bucket                  string
+	Key                     string
+	UploadId                string
+	ServerSideEncryption    string `xml:"-"`
+	SSEKMSKeyId             string `xml:"-"`
+	SSEKMSEncryptionContext string `xml:"-"`
+}
+
+type UploadPartInput struct {
+	Bucket     string
+	Key        string
+	UploadId   string
+	PartNumber int
+	Data       []byte
+}
+
+type UploadPartOutput struct {
+	ETag                 string
+	ServerSideEncryption string
+	SSEKMSKeyId          string
+}
+
+type CompleteMultipartUploadInput struct {
+	XMLName  xml.Name `xml:"CompleteMultipartUpload"`
+	UploadId string
+	Bucket   string
+	Key      string
+	Part     []APIPart
+}
+
+type APIPart struct {
+	XMLName    xml.Name `xml:"Part"`
+	ETag       string
+	PartNumber int
+}
+
+type CompleteMultipartUploadOutput struct {
+	XMLName                 xml.Name `xml:"CompleteMultipartUploadResult"`
+	Location                string
+	Bucket                  string
+	Key                     string
+	ETag                    string
+	ServerSideEncryption    string `xml:"-"`
+	SSEKMSKeyId             string `xml:"-"`
+	SSEKMSEncryptionContext string `xml:"-"`
+}

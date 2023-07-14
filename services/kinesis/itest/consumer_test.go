@@ -30,7 +30,7 @@ func makeClientServerPair() (*kinesis.Client, *http.Server) {
 	if err != nil {
 		panic(err)
 	}
-	srv := server.New(methodRegistry)
+	srv := server.NewWithRegistry(methodRegistry)
 	go srv.Serve(listener)
 
 	client := kinesis.New(kinesis.Options{

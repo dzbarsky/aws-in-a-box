@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 
 func main() {
 	addr := flag.String("addr", "localhost:4569", "Address to run on")
+	persistDir := flag.String("persistDir", "", "Directory to persist data to. If empty, data is not persisted.")
 
 	enableKinesis := flag.Bool("enableKinesis", true, "Enable Kinesis service")
 	kinesisInitialStreams := flag.String("kinesisInitialStreams", "",
@@ -51,7 +53,10 @@ func main() {
 	}
 
 	if *enableKMS {
-		k := kms.New(arnGenerator)
+		k, err := kms.New(arnGenerator, *persistDir)
+		if err != nil {
+			log.Fatal(err)
+		}
 		k.RegisterHTTPHandlers(methodRegistry)
 		//log.Println("Enabled KMS")
 	}

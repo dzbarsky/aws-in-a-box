@@ -3,6 +3,8 @@ package kms
 import (
 	"aws-in-a-box/arn"
 	"crypto/rand"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -17,6 +19,7 @@ type KeyId = string
 
 type KMS struct {
 	arnGenerator arn.Generator
+	persistDir   string
 
 	mu sync.Mutex
 
@@ -25,12 +28,41 @@ type KMS struct {
 	keys    map[KeyId]*key.Key
 }
 
-func New(arnGenerator arn.Generator) *KMS {
+func New(arnGenerator arn.Generator, persistDir string) (*KMS, error) {
+	keys := make(map[KeyId]*key.Key)
+
+	if persistDir != "" {
+		persistDir = filepath.Join(persistDir, "kms")
+		err := os.MkdirAll(persistDir, 0700)
+		if err != nil {
+			return nil, err
+		}
+
+		files, err := os.ReadDir(persistDir)
+		if err != nil {
+			return nil, err
+		}
+		for _, file := range files {
+			name := file.Name()
+			fullPath := filepath.Join(persistDir, name)
+			if strings.HasSuffix(name, ".tmp") {
+				os.Remove(fullPath)
+			} else if strings.HasSuffix(name, ".json") {
+				key, err := key.NewFromFile(fullPath)
+				if err != nil {
+					return nil, err
+				}
+				keys[key.Id()] = key
+			}
+		}
+	}
+
 	return &KMS{
 		arnGenerator: arnGenerator,
+		persistDir:   persistDir,
 		aliases:      make(map[string]KeyId),
-		keys:         make(map[KeyId]*key.Key),
-	}
+		keys:         keys,
+	}, nil
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateKey.html
@@ -55,7 +87,11 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 
 	switch keySpec {
 	case "", "SYMMETRIC_DEFAULT":
-		k.keys[keyId] = key.NewAES(keyId, tags)
+		persistPath := ""
+		if k.persistDir != "" {
+			persistPath = filepath.Join(k.persistDir, keyId+".json")
+		}
+		k.keys[keyId] = key.NewAES(persistPath, keyId, tags)
 	case "HMAC_224", "HMAC_256", "HMAC_384", "HMAC_512":
 		return nil, UnsupportedOperationException("")
 	case "RSA_2048", "RSA_3072", "RSA_4096":
@@ -325,7 +361,10 @@ func (k *KMS) DisableKey(input DisableKeyInput) (*DisableKeyOutput, *awserrors.E
 		return nil, NotFoundException("")
 	}
 
-	key.SetEnabled(false)
+	err := key.SetEnabled(false)
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
 	return nil, nil
 }
 
@@ -339,7 +378,10 @@ func (k *KMS) EnableKey(input EnableKeyInput) (*EnableKeyOutput, *awserrors.Erro
 		return nil, NotFoundException("")
 	}
 
-	key.SetEnabled(true)
+	err := key.SetEnabled(true)
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
 	return nil, nil
 }
 
@@ -363,7 +405,10 @@ func (k *KMS) TagResource(input TagResourceInput) (*TagResourceOutput, *awserror
 		return nil, NotFoundException("")
 	}
 
-	key.SetTags(fromAPITags(input.Tags))
+	err := key.SetTags(fromAPITags(input.Tags))
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
 	return nil, nil
 }
 
@@ -395,7 +440,10 @@ func (k *KMS) UntagResource(input UntagResourceInput) (*UntagResourceOutput, *aw
 		return nil, NotFoundException("")
 	}
 
-	key.DeleteTags(input.Tags)
+	err := key.DeleteTags(input.Tags)
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
 	return nil, nil
 }
 

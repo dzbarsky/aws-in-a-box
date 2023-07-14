@@ -10,13 +10,16 @@ import (
 )
 
 func newKMSWithKeyReturningARN() (*KMS, string, string) {
-	k := New(arn.Generator{
+	k, err := New(arn.Generator{
 		AwsAccountId: "12345",
 		Region:       "us-east-1",
-	})
-	output, err := k.CreateKey(CreateKeyInput{})
+	}, "")
 	if err != nil {
 		panic(err)
+	}
+	output, awserr := k.CreateKey(CreateKeyInput{})
+	if awserr != nil {
+		panic(awserr)
 	}
 
 	return k, output.KeyMetadata.KeyId, output.KeyMetadata.Arn

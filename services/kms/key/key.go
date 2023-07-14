@@ -79,14 +79,19 @@ func (k *Key) serialize() ([]byte, error) {
 	})
 }
 
-func NewAES(persistPath string, id string, tags map[string]string) *Key {
-	return &Key{
+func NewAES(persistPath string, id string, tags map[string]string) (*Key, error) {
+	k := &Key{
 		persistPath: persistPath,
 		id:          id,
 		tags:        tags,
 		enabled:     true,
 		key:         newAesKey(),
 	}
+	err := k.persist()
+	if err != nil {
+		return nil, err
+	}
+	return k, nil
 }
 
 func NewFromFile(path string) (*Key, error) {

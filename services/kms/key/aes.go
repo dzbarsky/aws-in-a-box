@@ -1,4 +1,4 @@
-package kms
+package key
 
 import (
 	"crypto/aes"
@@ -8,21 +8,21 @@ import (
 	"errors"
 )
 
-type AESKey struct {
+type aesKey struct {
 	// For now, we just have 1. Should enable key rotation.
 	backingKeys [][32]byte
 }
 
-func newAesKey() *AESKey {
+func newAesKey() *aesKey {
 	var backingKey [32]byte
 	rand.Read(backingKey[:])
 
-	return &AESKey{
+	return &aesKey{
 		backingKeys: [][32]byte{backingKey},
 	}
 }
 
-func (a *AESKey) Encrypt(
+func (a *aesKey) Encrypt(
 	plaintext []byte, context map[string]string,
 ) (
 	[]byte, uint32, error,
@@ -56,7 +56,7 @@ func (a *AESKey) Encrypt(
 	return append(nonce, ciphertext...), version, nil
 }
 
-func (a *AESKey) Decrypt(
+func (a *aesKey) Decrypt(
 	ciphertext []byte, version uint32, context map[string]string,
 ) (
 	[]byte, error,

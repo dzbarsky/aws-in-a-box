@@ -3,7 +3,6 @@ package kms
 import (
 	"aws-in-a-box/arn"
 	"crypto/rand"
-	"encoding/binary"
 	"regexp"
 	"strings"
 	"sync"
@@ -11,33 +10,10 @@ import (
 	"github.com/gofrs/uuid/v5"
 
 	"aws-in-a-box/awserrors"
+	"aws-in-a-box/services/kms/key"
 )
 
 type KeyId = string
-
-type KeyWithMetadata struct {
-	Id       KeyId
-	Disabled bool
-	Tags     map[string]string
-
-	Key *AESKey
-}
-
-func (k *KeyWithMetadata) Encrypt(
-	plaintext []byte, context map[string]string,
-) (
-	[]byte, error,
-) {
-	ciphertext, version, err := k.Key.Encrypt(plaintext, context)
-	if err != nil {
-		return nil, err
-	}
-
-	var packedBlob = []byte{uint8(len(k.Id))}
-	packedBlob = append(packedBlob, k.Id...)
-	packedBlob = binary.LittleEndian.AppendUint32(packedBlob, version)
-	return append(packedBlob, ciphertext...), nil
-}
 
 type KMS struct {
 	arnGenerator arn.Generator
@@ -46,14 +22,14 @@ type KMS struct {
 
 	// The keys here do not include the "alias/" prefix
 	aliases map[string]KeyId
-	keys    map[KeyId]*KeyWithMetadata
+	keys    map[KeyId]*key.Key
 }
 
 func New(arnGenerator arn.Generator) *KMS {
 	return &KMS{
 		arnGenerator: arnGenerator,
 		aliases:      make(map[string]KeyId),
-		keys:         make(map[KeyId]*KeyWithMetadata),
+		keys:         make(map[KeyId]*key.Key),
 	}
 }
 
@@ -64,7 +40,13 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 
 	keyId := uuid.Must(uuid.NewV4()).String()
 
-	var aesKey *AESKey
+	for _, t := range input.Tags {
+		if !isValidTagKey(t.TagKey) || !isValidTagValue(t.TagValue) {
+			return nil, TagException("")
+		}
+	}
+
+	tags := fromAPITags(input.Tags)
 
 	keySpec := input.KeySpec
 	if keySpec == "" {
@@ -73,7 +55,7 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 
 	switch keySpec {
 	case "", "SYMMETRIC_DEFAULT":
-		aesKey = newAesKey()
+		k.keys[keyId] = key.NewAES(keyId, tags)
 	case "HMAC_224", "HMAC_256", "HMAC_384", "HMAC_512":
 		return nil, UnsupportedOperationException("")
 	case "RSA_2048", "RSA_3072", "RSA_4096":
@@ -85,20 +67,6 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 		return nil, UnsupportedOperationException("")
 	}
 
-	key := &KeyWithMetadata{
-		Id:  keyId,
-		Key: aesKey,
-	}
-
-	for _, t := range input.Tags {
-		if !isValidTagKey(t.TagKey) || !isValidTagValue(t.TagValue) {
-			return nil, TagException("")
-		}
-		key.Tags[t.TagKey] = t.TagValue
-	}
-
-	k.keys[keyId] = key
-
 	return &CreateKeyOutput{
 		KeyMetadata: APIKeyMetadata{
 			Arn:   k.arnGenerator.Generate("kms", "key", keyId),
@@ -107,7 +75,7 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 	}, nil
 }
 
-func (k *KMS) lockedGetKey(keyId string) *KeyWithMetadata {
+func (k *KMS) lockedGetKey(keyId string) *key.Key {
 	// There are 4 possible ways to specify a key:
 	// - Key ID: 1234abcd-12ab-34cd-56ef-1234567890ab
 	// - Key ARN: arn:aws:kms:us-east-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
@@ -167,7 +135,7 @@ func (k *KMS) CreateAlias(input CreateAliasInput) (*CreateAliasOutput, *awserror
 		return nil, AlreadyExistsException("")
 	}
 
-	k.aliases[aliasName] = key.Id
+	k.aliases[aliasName] = key.Id()
 	return nil, nil
 }
 
@@ -235,7 +203,7 @@ func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (*GenerateDataKeyOutpu
 		return nil, NotFoundException("")
 	}
 
-	if key.Disabled {
+	if !key.Enabled() {
 		return nil, DisabledException("")
 	}
 
@@ -246,7 +214,7 @@ func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (*GenerateDataKeyOutpu
 	}
 
 	return &GenerateDataKeyOutput{
-		KeyId:          key.Id,
+		KeyId:          key.Id(),
 		Plaintext:      dataKey,
 		CiphertextBlob: encryptedDataKey,
 	}, nil
@@ -285,7 +253,7 @@ func (k *KMS) Encrypt(input EncryptInput) (*EncryptOutput, *awserrors.Error) {
 		return nil, NotFoundException("")
 	}
 
-	if key.Disabled {
+	if !key.Enabled() {
 		return nil, DisabledException("")
 	}
 
@@ -297,7 +265,7 @@ func (k *KMS) Encrypt(input EncryptInput) (*EncryptOutput, *awserrors.Error) {
 	return &EncryptOutput{
 		CiphertextBlob:      ciphertext,
 		EncryptionAlgorithm: input.EncryptionAlgorithm,
-		KeyId:               key.Id,
+		KeyId:               key.Id(),
 	}, nil
 }
 
@@ -318,7 +286,6 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 		return nil, InvalidCiphertextException("")
 	}
 	keyArn, data := string(data[:keyArnLen]), data[keyArnLen:]
-	version, data := binary.LittleEndian.Uint32(data[:4]), data[4:]
 
 	if input.KeyId != "" {
 		keyArn = input.KeyId
@@ -332,11 +299,11 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 		return nil, NotFoundException("")
 	}
 
-	if key.Disabled {
+	if !key.Enabled() {
 		return nil, DisabledException("")
 	}
 
-	plaintext, err := key.Key.Decrypt(data, version, input.EncryptionContext)
+	plaintext, err := key.Decrypt(data, input.EncryptionContext)
 	if err != nil {
 		return nil, InvalidCiphertextException(err.Error())
 	}
@@ -344,7 +311,7 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 	return &DecryptOutput{
 		Plaintext:           plaintext,
 		EncryptionAlgorithm: input.EncryptionAlgorithm,
-		KeyId:               key.Id,
+		KeyId:               key.Id(),
 	}, nil
 }
 
@@ -358,7 +325,7 @@ func (k *KMS) DisableKey(input DisableKeyInput) (*DisableKeyOutput, *awserrors.E
 		return nil, NotFoundException("")
 	}
 
-	key.Disabled = true
+	key.SetEnabled(false)
 	return nil, nil
 }
 
@@ -372,7 +339,7 @@ func (k *KMS) EnableKey(input EnableKeyInput) (*EnableKeyOutput, *awserrors.Erro
 		return nil, NotFoundException("")
 	}
 
-	key.Disabled = false
+	key.SetEnabled(true)
 	return nil, nil
 }
 
@@ -396,11 +363,16 @@ func (k *KMS) TagResource(input TagResourceInput) (*TagResourceOutput, *awserror
 		return nil, NotFoundException("")
 	}
 
-	for _, t := range input.Tags {
-		key.Tags[t.TagKey] = t.TagValue
-	}
-
+	key.SetTags(fromAPITags(input.Tags))
 	return nil, nil
+}
+
+func fromAPITags(apiTags []APITag) map[string]string {
+	tags := make(map[string]string, len(apiTags))
+	for _, t := range apiTags {
+		tags[t.TagKey] = t.TagValue
+	}
+	return tags
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_UntagResource.html
@@ -423,10 +395,7 @@ func (k *KMS) UntagResource(input UntagResourceInput) (*UntagResourceOutput, *aw
 		return nil, NotFoundException("")
 	}
 
-	for _, tag := range input.Tags {
-		delete(key.Tags, tag)
-	}
-
+	key.DeleteTags(input.Tags)
 	return nil, nil
 }
 
@@ -445,7 +414,7 @@ func (k *KMS) ListResourceTags(input ListResourceTagsInput) (*ListResourceTagsOu
 	}
 
 	output := &ListResourceTagsOutput{}
-	for tagKey, tagValue := range key.Tags {
+	for tagKey, tagValue := range key.Tags() {
 		output.Tags = append(output.Tags, APITag{
 			TagKey:   tagKey,
 			TagValue: tagValue,
@@ -463,8 +432,8 @@ func (k *KMS) ListKeys(input ListKeysInput) (*ListKeysOutput, *awserrors.Error) 
 	output := &ListKeysOutput{}
 	for _, key := range k.keys {
 		output.Keys = append(output.Keys, APIKey{
-			KeyId:  key.Id,
-			KeyArn: k.arnGenerator.Generate("kms", "key", key.Id),
+			KeyId:  key.Id(),
+			KeyArn: k.arnGenerator.Generate("kms", "key", key.Id()),
 		})
 	}
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 
@@ -128,7 +127,6 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 						w.Header().Set("x-amz-server-side-encryption-context", output.SSEKMSEncryptionContext)
 						w.WriteHeader(http.StatusOK)
 						writeXML(w, output)
-						writeXML(os.Stdout, output)
 					}
 				}
 				return

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -45,13 +44,7 @@ func makeClientServerPair() (*s3.Client, *http.Server) {
 func TestMultipartUpload(t *testing.T) {
 	ctx := context.Background()
 	client, srv := makeClientServerPair()
-	defer func() {
-		// The shutdown is blocked by the 5-minute connection timeout.
-		// Not sure how to handle this properly yet, but we don't want the
-		// test to hang.
-		ctx, _ := context.WithTimeout(ctx, 1*time.Millisecond)
-		srv.Shutdown(ctx)
-	}()
+	defer srv.Shutdown(ctx)
 
 	key := "test-key"
 	upload, err := client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{

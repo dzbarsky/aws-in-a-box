@@ -65,9 +65,10 @@ type Kinesis struct {
 	arnGenerator     arn.Generator
 	defaultRetention time.Duration
 
-	mu             sync.Mutex
-	streams        map[string]*Stream
-	consumersByARN map[string]*Consumer
+	mu               sync.Mutex
+	streams          map[string]*Stream
+	consumersByARN   map[string]*Consumer
+	highestTimestamp int64
 }
 
 func New(generator arn.Generator, defaultRetention time.Duration) *Kinesis {
@@ -181,6 +182,15 @@ func (k *Kinesis) DeleteStream(input DeleteStreamInput) (*DeleteStreamOutput, *a
 	return nil, nil
 }
 
+func (k *Kinesis) lockedGetNextSequenceNumber() string {
+	timestamp := time.Now().UnixNano()
+	if timestamp == k.highestTimestamp {
+		timestamp += 1
+	}
+	k.highestTimestamp = timestamp
+	return i64toA(timestamp)
+}
+
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecord.html
 func (k *Kinesis) PutRecord(input PutRecordInput) (*PutRecordOutput, *awserrors.Error) {
 	streamName := input.StreamName
@@ -208,10 +218,9 @@ func (k *Kinesis) PutRecord(input PutRecordInput) (*PutRecordOutput, *awserrors.
 
 	for _, shard := range stream.Shards {
 		if hashKey.Cmp(&shard.EndingHashKey) <= 0 && hashKey.Cmp(&shard.StartingHashKey) >= 0 {
-			timestamp := time.Now().UnixNano()
-			sequenceNumber := i64toA(timestamp)
+			sequenceNumber := k.lockedGetNextSequenceNumber()
 			record := APIRecord{
-				ApproximateArrivalTimestamp: timestamp,
+				ApproximateArrivalTimestamp: time.Now().Unix(),
 				Data:                        input.Data,
 				PartitionKey:                input.PartitionKey,
 				SequenceNumber:              sequenceNumber,

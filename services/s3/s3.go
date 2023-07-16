@@ -99,6 +99,7 @@ func (s *S3) GetObject(bucket string, key string) (*Object, *awserrors.Error) {
 		return nil, awserrors.XXX_TODO("no item")
 	}
 
+	fmt.Println("OBJECT", object)
 	return &object, nil
 }
 
@@ -364,9 +365,11 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 	delete(s.multipartUploads, input.UploadId)
 
 	return &CompleteMultipartUploadOutput{
-		Bucket:   input.Bucket,
-		Key:      input.Key,
-		Location: fmt.Sprintf("http://%s/%s/%s", s.addr, input.Bucket, input.Key),
-		ETag:     etag(combinedMD5s) + "-" + strconv.Itoa(len(input.Part)),
+		Bucket:               input.Bucket,
+		Key:                  input.Key,
+		Location:             fmt.Sprintf("http://%s/%s/%s", s.addr, input.Bucket, input.Key),
+		ETag:                 etag(combinedMD5s) + "-" + strconv.Itoa(len(input.Part)),
+		ServerSideEncryption: object.ServerSideEncryption,
+		SSEKMSKeyId:          object.SSEKMSKeyId,
 	}, nil
 }

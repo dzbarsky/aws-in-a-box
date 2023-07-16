@@ -46,10 +46,15 @@ func TestMultipartUpload(t *testing.T) {
 	client, srv := makeClientServerPair()
 	defer srv.Shutdown(ctx)
 
+	kmsKey := "custom-kms-key"
 	key := "test-key"
+	kmsContext := "foo=bar"
 	upload, err := client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
-		Bucket: &bucket,
-		Key:    &key,
+		Bucket:                  &bucket,
+		Key:                     &key,
+		ServerSideEncryption:    types.ServerSideEncryptionAwsKms,
+		SSEKMSKeyId:             &kmsKey,
+		SSEKMSEncryptionContext: &kmsContext,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -65,6 +70,12 @@ func TestMultipartUpload(t *testing.T) {
 			UploadId:   id,
 			Body:       strings.NewReader(s),
 		})
+		if output.ServerSideEncryption != types.ServerSideEncryptionAwsKms {
+			t.Fatal("missing SSE header")
+		}
+		if *output.SSEKMSKeyId != kmsKey {
+			t.Fatal("missing KMS key header: ", *output.SSEKMSKeyId)
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -74,7 +85,7 @@ func TestMultipartUpload(t *testing.T) {
 		})
 	}
 
-	_, err = client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
+	output, err := client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
 		Bucket:   &bucket,
 		Key:      &key,
 		UploadId: id,
@@ -82,22 +93,34 @@ func TestMultipartUpload(t *testing.T) {
 			Parts: parts,
 		},
 	})
+	if output.ServerSideEncryption != types.ServerSideEncryptionAwsKms {
+		t.Fatal("missing SSE header")
+	}
+	if *output.SSEKMSKeyId != kmsKey {
+		t.Fatal("missing KMS key header")
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	output, err := client.GetObject(ctx, &s3.GetObjectInput{
+	object, err := client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: &bucket,
 		Key:    &key,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := io.ReadAll(output.Body)
+	data, err := io.ReadAll(object.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(data) != "hello world" {
 		t.Fatal("Unexpected data: ", string(data))
+	}
+	if object.ServerSideEncryption != types.ServerSideEncryptionAwsKms {
+		t.Fatal("missing SSE header")
+	}
+	if *object.SSEKMSKeyId != kmsKey {
+		t.Fatal("missing KMS key header")
 	}
 }

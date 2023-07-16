@@ -124,7 +124,6 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 					} else {
 						w.Header().Set("x-amz-server-side-encryption", output.ServerSideEncryption)
 						w.Header().Set("x-amz-server-side-encryption-aws-kms-key-id", output.SSEKMSKeyId)
-						w.Header().Set("x-amz-server-side-encryption-context", output.SSEKMSEncryptionContext)
 						w.WriteHeader(http.StatusOK)
 						writeXML(w, output)
 					}
@@ -135,6 +134,7 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 			case http.MethodGet:
 				object, err := s3.GetObject(parts[0], parts[1])
 				w.Header().Set("Content-Type", object.ContentType)
+				w.Header().Set("x-amz-server-side-encryption", object.ServerSideEncryption)
 				w.Header().Set("x-amz-server-side-encryption-customer-key", object.SSECustomerKey)
 				w.Header().Set("x-amz-server-side-encryption-customer-algorithm", object.SSECustomerAlgorithm)
 				w.Header().Set("x-amz-server-side-encryption-aws-kms-key-id", object.SSEKMSKeyId)

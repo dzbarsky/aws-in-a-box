@@ -1,6 +1,8 @@
 package s3
 
-import "encoding/xml"
+import (
+	"encoding/xml"
+)
 
 type CreateBucketInput struct {
 	Bucket string
@@ -11,13 +13,12 @@ type CreateBucketOutput struct {
 }
 
 type GetObjectTaggingOutput struct {
-	Tagging Tagging
+	XMLName xml.Name `xml:"Tagging"`
+	TagSet  TagSet
 }
 
-type Tagging struct {
-	TagSet struct {
-		Tag []APITag
-	}
+type TagSet struct {
+	Tag []APITag
 }
 
 type APITag struct {
@@ -26,9 +27,10 @@ type APITag struct {
 }
 
 type PutObjectTaggingInput struct {
-	Bucket  string
-	Key     string
-	Tagging Tagging
+	XMLName xml.Name `xml:"Tagging"`
+	Bucket  string   `s3:"bucket"`
+	Key     string   `s3:"key"`
+	TagSet  TagSet
 }
 
 type PutObjectTaggingOutput struct{}
@@ -37,6 +39,15 @@ type CopyObjectOutput struct {
 	XMLName      xml.Name `xml:"CopyObjectResult"`
 	ETag         string
 	LastModified string
+}
+
+type CreateMultipartUploadInput struct {
+	Bucket                  string `s3:"bucket"`
+	Key                     string `s3:"key"`
+	ContentType             string `s3:"header:content-type"`
+	ServerSideEncryption    string `s3:"header:x-amz-server-side-encryption"`
+	SSEKMSKeyId             string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
+	SSEKMSEncryptionContext string `s3:"header:x-amz-server-side-encryption-context"`
 }
 
 type CreateMultipartUploadOutput struct {
@@ -65,9 +76,9 @@ type UploadPartOutput struct {
 
 type CompleteMultipartUploadInput struct {
 	XMLName  xml.Name `xml:"CompleteMultipartUpload"`
-	UploadId string
-	Bucket   string
-	Key      string
+	UploadId string   `s3:"query:uploadId"`
+	Bucket   string   `s3:"bucket"`
+	Key      string   `s3:"key"`
 	Part     []APIPart
 }
 
@@ -78,12 +89,11 @@ type APIPart struct {
 }
 
 type CompleteMultipartUploadOutput struct {
-	XMLName                 xml.Name `xml:"CompleteMultipartUploadResult"`
-	Location                string
-	Bucket                  string
-	Key                     string
-	ETag                    string
-	ServerSideEncryption    string `xml:"-"`
-	SSEKMSKeyId             string `xml:"-"`
-	SSEKMSEncryptionContext string `xml:"-"`
+	XMLName              xml.Name `xml:"CompleteMultipartUploadResult"`
+	Location             string
+	Bucket               string
+	Key                  string
+	ETag                 string
+	ServerSideEncryption string `xml:"-"`
+	SSEKMSKeyId          string `xml:"-"`
 }

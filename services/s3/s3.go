@@ -32,7 +32,7 @@ type Object struct {
 }
 
 type Bucket struct {
-	objects map[string]Object
+	objects map[string]*Object
 }
 
 type multipartUpload struct {
@@ -76,7 +76,7 @@ func (s *S3) CreateBucket(input CreateBucketInput) (*CreateBucketOutput, *awserr
 	}
 
 	s.buckets[input.Bucket] = &Bucket{
-		objects: make(map[string]Object),
+		objects: make(map[string]*Object),
 	}
 
 	return &CreateBucketOutput{
@@ -100,7 +100,7 @@ func (s *S3) GetObject(bucket string, key string) (*Object, *awserrors.Error) {
 	}
 
 	fmt.Println("OBJECT", object)
-	return &object, nil
+	return object, nil
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
@@ -113,7 +113,7 @@ func (s *S3) PutObject(bucket string, key string, data []byte, header http.Heade
 		return awserrors.XXX_TODO("no bucket")
 	}
 
-	b.objects[key] = Object{
+	b.objects[key] = &Object{
 		Data:        data,
 		ContentType: header.Get("Content-Type"),
 
@@ -224,7 +224,7 @@ func (s *S3) GetObjectTagging(bucket string, key string) (*GetObjectTaggingOutpu
 		if len(kv) != 2 {
 			return nil, awserrors.XXX_TODO("invalid tagging")
 		}
-		tagging.Tagging.TagSet.Tag = append(tagging.Tagging.TagSet.Tag, APITag{
+		tagging.TagSet.Tag = append(tagging.TagSet.Tag, APITag{
 			Key:   kv[0],
 			Value: kv[1],
 		})
@@ -248,25 +248,26 @@ func (s *S3) PutObjectTagging(input PutObjectTaggingInput) (*PutObjectTaggingOut
 	}
 
 	tagging := strings.Builder{}
-	for i, tag := range input.Tagging.TagSet.Tag {
+	for i, tag := range input.TagSet.Tag {
 		tagging.WriteString(tag.Key)
 		tagging.WriteRune('=')
 		tagging.WriteString(tag.Value)
-		if i != len(input.Tagging.TagSet.Tag)-1 {
+		if i != len(input.TagSet.Tag)-1 {
 			tagging.WriteRune(',')
 		}
 	}
 	object.Tagging = tagging.String()
+	fmt.Println("NEW TAG", object.Tagging)
 
 	return nil, nil
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
-func (s *S3) CreateMultipartUpload(bucket string, key string, header http.Header) (*CreateMultipartUploadOutput, *awserrors.Error) {
+func (s *S3) CreateMultipartUpload(input CreateMultipartUploadInput) (*CreateMultipartUploadOutput, *awserrors.Error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, ok := s.buckets[bucket]
+	_, ok := s.buckets[input.Bucket]
 	if !ok {
 		return nil, awserrors.XXX_TODO("no bucket")
 	}
@@ -274,21 +275,21 @@ func (s *S3) CreateMultipartUpload(bucket string, key string, header http.Header
 	uploadId := base64.RawURLEncoding.EncodeToString(uuid.Must(uuid.NewV4()).Bytes())
 
 	s.multipartUploads[uploadId] = &multipartUpload{
-		Bucket: bucket,
-		Key:    key,
+		Bucket: input.Bucket,
+		Key:    input.Key,
 		Parts:  make(map[int]Part),
 		// Just for metadata
 		Object: Object{
-			ContentType:             header.Get("Content-Type"),
-			ServerSideEncryption:    header.Get("x-amz-server-side-encryption"),
-			SSEKMSKeyId:             header.Get("x-amz-server-side-encryption-aws-kms-key-id"),
-			SSEKMSEncryptionContext: header.Get("x-amz-server-side-encryption-context"),
+			ContentType:             input.ContentType,
+			ServerSideEncryption:    input.ServerSideEncryption,
+			SSEKMSKeyId:             input.SSEKMSKeyId,
+			SSEKMSEncryptionContext: input.SSEKMSEncryptionContext,
 		},
 	}
 
 	return &CreateMultipartUploadOutput{
-		Bucket:   bucket,
-		Key:      key,
+		Bucket:   input.Bucket,
+		Key:      input.Key,
 		UploadId: uploadId,
 	}, nil
 }
@@ -361,7 +362,7 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 
 	object := upload.Object
 	object.Data = combinedData
-	s.buckets[input.Bucket].objects[input.Key] = object
+	s.buckets[input.Bucket].objects[input.Key] = &object
 	delete(s.multipartUploads, input.UploadId)
 
 	return &CompleteMultipartUploadOutput{

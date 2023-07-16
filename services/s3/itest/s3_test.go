@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
@@ -37,6 +38,7 @@ func makeClientServerPair() (*s3.Client, *http.Server) {
 		EndpointResolver: s3.EndpointResolverFromURL("http://" + listener.Addr().String()),
 		// Disable the subdomain addressing since it won't work (test-bucket.127.0.0.1)
 		UsePathStyle: true,
+		Retryer:      aws.NopRetryer{},
 	})
 
 	return client, srv
@@ -122,5 +124,72 @@ func TestMultipartUpload(t *testing.T) {
 	}
 	if *object.SSEKMSKeyId != kmsKey {
 		t.Fatal("missing KMS key header")
+	}
+}
+
+func TestObjectTagging(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	key := "test-key"
+	_, err := client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:  &bucket,
+		Key:     &key,
+		Tagging: aws.String("key=value"),
+		Body:    strings.NewReader("hello"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tagging, err := client.GetObjectTagging(ctx, &s3.GetObjectTaggingInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags := tagging.TagSet
+	if len(tags) != 1 {
+		t.Fatal("bad tags", tagging.TagSet)
+	}
+	if *tags[0].Key != "key" {
+		t.Fatal("bad tag")
+	}
+	if *tags[0].Value != "value" {
+		t.Fatal("bad value")
+	}
+
+	_, err = client.PutObjectTagging(ctx, &s3.PutObjectTaggingInput{
+		Bucket: &bucket,
+		Key:    &key,
+		Tagging: &types.Tagging{TagSet: []types.Tag{
+			{
+				Key:   aws.String("key"),
+				Value: aws.String("value2"),
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tagging, err = client.GetObjectTagging(ctx, &s3.GetObjectTaggingInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags = tagging.TagSet
+	if len(tags) != 1 {
+		t.Fatal("bad tags", tagging.TagSet)
+	}
+	if *tags[0].Key != "key" {
+		t.Fatal("bad tag")
+	}
+	if *tags[0].Value != "value2" {
+		t.Fatal("bad value", *tags[0].Value)
 	}
 }

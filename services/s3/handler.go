@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -35,20 +36,15 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 						w.Write([]byte(err.Body.Message))
 					} else {
 						w.WriteHeader(http.StatusOK)
-						writeXML(w, tagging.Tagging)
+						writeXML(w, tagging)
 					}
 				case "PUT":
-					var tagging Tagging
-					// TODO: better decoding?
-					err := xml.NewDecoder(r.Body).Decode(&tagging)
+					var input PutObjectTaggingInput
+					err := unmarshal(r, &input)
 					if err != nil {
 						panic(err)
 					}
-					_, awserr := s3.PutObjectTagging(PutObjectTaggingInput{
-						Bucket:  parts[0],
-						Key:     parts[1],
-						Tagging: tagging,
-					})
+					_, awserr := s3.PutObjectTagging(input)
 					if awserr != nil {
 						w.WriteHeader(awserr.Code)
 						w.Write([]byte(awserr.Body.Message))
@@ -62,10 +58,12 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 				case http.MethodGet:
 					panic("Unhandled GetMultipartUploads")
 				case http.MethodPost:
-					output, awserr := s3.CreateMultipartUpload(
-						parts[0],
-						parts[1],
-						r.Header)
+					var input CreateMultipartUploadInput
+					err := unmarshal(r, &input)
+					if err != nil {
+						panic(err)
+					}
+					output, awserr := s3.CreateMultipartUpload(input)
 					if awserr != nil {
 						w.WriteHeader(awserr.Code)
 						w.Write([]byte(awserr.Body.Message))
@@ -109,14 +107,10 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 
 				case http.MethodPost:
 					var input CompleteMultipartUploadInput
-					// TODO: better decoding?
-					err := xml.NewDecoder(r.Body).Decode(&input)
+					err := unmarshal(r, &input)
 					if err != nil {
 						panic(err)
 					}
-					input.Bucket = parts[0]
-					input.Key = parts[1]
-					input.UploadId = r.URL.Query().Get("uploadId")
 					output, awserr := s3.CompleteMultipartUpload(input)
 					if awserr != nil {
 						w.WriteHeader(awserr.Code)
@@ -190,4 +184,36 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 			}
 		}
 	})
+}
+
+func unmarshal(r *http.Request, target any) error {
+	path := strings.Trim(r.URL.Path, "/")
+	parts := strings.SplitN(path, "/", 2)
+
+	err := xml.NewDecoder(r.Body).Decode(target)
+	if err != nil && err != io.EOF {
+		return err
+	}
+
+	v := reflect.ValueOf(target).Elem()
+	ty := v.Type()
+	for i := 0; i < ty.NumField(); i++ {
+		tag := ty.Field(i).Tag.Get("s3")
+		if tag == "" {
+			continue
+		}
+
+		var value any
+		if tag == "bucket" {
+			value = parts[0]
+		} else if tag == "key" {
+			value = parts[1]
+		} else if q, ok := strings.CutPrefix(tag, "query:"); ok {
+			value = r.URL.Query().Get(q)
+		} else if h, ok := strings.CutPrefix(tag, "header:"); ok {
+			value = r.Header.Get(h)
+		}
+		v.Field(i).Set(reflect.ValueOf(value))
+	}
+	return nil
 }

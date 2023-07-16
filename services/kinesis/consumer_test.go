@@ -3,7 +3,9 @@ package kinesis
 import (
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
+	"time"
 
 	"aws-in-a-box/awserrors"
 )
@@ -96,53 +98,74 @@ func TestRegisterStreamConsumer_ARN(t *testing.T) {
 }
 
 func TestDeregisterStreamConsumer(t *testing.T) {
-	k, streamName := newKinesisWithStream()
-	streamName2 := streamName + "2"
-
-	consumerName := "exampleConsumer"
-	consumerName2 := consumerName + "2"
-	registerInput := RegisterStreamConsumerInput{
-		ConsumerName: consumerName,
-		StreamARN:    k.arnForStream(streamName),
-	}
-
 	tests := map[string]struct {
-		byArn        bool
+		arnIndex     int
 		consumerName string
 		streamName   string
 		err          *awserrors.Error
 	}{
-		"by ARN":           {byArn: true},
-		"by ARN with name": {byArn: true, streamName: streamName, consumerName: consumerName},
-		"by ARN with wrong consumer name": {
-			byArn: true, streamName: streamName, consumerName: consumerName2,
-			//err: awserrors.InvalidArgumentException("Multiple consumers specified")
+		"not specified": {
+			err: awserrors.InvalidArgumentException("Consumer not specified"),
 		},
-		"by ARN with wrong stream name": {
-			byArn: true, streamName: streamName2, consumerName: consumerName,
+		"by name": {streamName: "stream1", consumerName: "consumer1"},
+		"real stream, bad consumer name": {
+			streamName: "stream2", consumerName: "consumer1",
+			err: awserrors.ResourceNotFoundException("No such consumer"),
+		},
+		"non-existent stream": {
+			streamName: "stream3", consumerName: "consumer2",
+			err: awserrors.ResourceNotFoundException("No such stream"),
+		},
+		"by ARN":           {arnIndex: 1},
+		"by ARN with name": {arnIndex: 1, streamName: "stream1", consumerName: "consumer1"},
+		"by ARN with wrong consumer name": {
+			arnIndex: 1, streamName: "stream1", consumerName: "consumer2",
+			err: awserrors.ResourceNotFoundException("No such consumer"),
+		},
+		"by ARN with other stream, bad consumer name": {
+			arnIndex: 1, streamName: "stream2", consumerName: "consumer1",
+			err: awserrors.ResourceNotFoundException("No such consumer"),
+		},
+		"by ARN with other consumer": {
+			arnIndex: 1, streamName: "stream2", consumerName: "consumer2",
+			err: awserrors.InvalidArgumentException("Multiple consumers specified"),
+		},
+		"by ARN with non-existent stream": {
+			arnIndex: 1, streamName: "stream3", consumerName: "consumer2",
 			err: awserrors.ResourceNotFoundException("No such stream"),
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			output, err := k.RegisterStreamConsumer(registerInput)
-			if err != nil {
-				t.Fatal(err)
-			}
-			arn := output.Consumer.ConsumerARN
+			k := New(generator, time.Hour)
+			arns := []string{""}
+			for _, streamName := range []string{"stream1", "stream2"} {
+				_, err := k.CreateStream(CreateStreamInput{
+					StreamName: streamName,
+					ShardCount: 1,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
 
-			deregisterInput := DeregisterStreamConsumerInput{
-				ConsumerName: tc.consumerName,
-			}
-			if tc.byArn {
-				deregisterInput.ConsumerARN = arn
-			}
-			if tc.streamName != "" {
-				deregisterInput.StreamARN = k.arnForStream(tc.streamName)
+				output, err := k.RegisterStreamConsumer(RegisterStreamConsumerInput{
+					ConsumerName: strings.ReplaceAll(streamName, "stream", "consumer"),
+					StreamARN:    k.arnForStream(streamName),
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				arns = append(arns, output.Consumer.ConsumerARN)
 			}
 
-			_, err = k.DeregisterStreamConsumer(deregisterInput)
+			_, err := k.DeregisterStreamConsumer(
+				DeregisterStreamConsumerInput{
+					ConsumerARN:  arns[tc.arnIndex],
+					ConsumerName: tc.consumerName,
+					StreamARN:    k.arnForStream(tc.streamName),
+				})
 			if !reflect.DeepEqual(err, tc.err) {
 				t.Fatal(err)
 			}

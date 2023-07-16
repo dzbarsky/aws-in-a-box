@@ -45,33 +45,7 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 			} else if r.URL.Query().Has("uploadId") {
 				switch r.Method {
 				case http.MethodPut:
-					data, err := io.ReadAll(r.Body)
-					if err != nil {
-						panic(err)
-					}
-					defer r.Body.Close()
-					partNumber, err := strconv.Atoi(r.URL.Query().Get("partNumber"))
-					if err != nil {
-						panic(err)
-					}
-
-					output, awserr := s3.UploadPart(UploadPartInput{
-						Bucket:     parts[0],
-						Key:        parts[1],
-						UploadId:   r.URL.Query().Get("uploadId"),
-						PartNumber: partNumber,
-						Data:       data,
-					})
-					if awserr != nil {
-						w.WriteHeader(awserr.Code)
-						w.Write([]byte(awserr.Body.Message))
-					} else {
-						w.Header().Set("ETag", output.ETag)
-						w.Header().Set("x-amz-server-side-encryption", output.ServerSideEncryption)
-						w.Header().Set("x-amz-server-side-encryption-aws-kms-key-id", output.SSEKMSKeyId)
-						w.WriteHeader(http.StatusOK)
-					}
-
+					handle(w, r, s3.UploadPart)
 				case http.MethodPost:
 					handle(w, r, s3.CompleteMultipartUpload)
 				}
@@ -154,15 +128,19 @@ func unmarshal(r *http.Request, target any) error {
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.SplitN(path, "/", 2)
 
-	err := xml.NewDecoder(r.Body).Decode(target)
-	if err != nil && err != io.EOF {
-		return err
-	}
-
 	v := reflect.ValueOf(target).Elem()
 	ty := v.Type()
+
+	if _, ok := ty.FieldByName("XMLName"); ok {
+		err := xml.NewDecoder(r.Body).Decode(target)
+		if err != nil && err != io.EOF {
+			return err
+		}
+	}
+
 	for i := 0; i < ty.NumField(); i++ {
-		tag := ty.Field(i).Tag.Get("s3")
+		field := ty.Field(i)
+		tag := field.Tag.Get("s3")
 		if tag == "" {
 			continue
 		}
@@ -172,8 +150,24 @@ func unmarshal(r *http.Request, target any) error {
 			value = parts[0]
 		} else if tag == "key" {
 			value = parts[1]
+		} else if tag == "body" {
+			var err error
+			value, err = io.ReadAll(r.Body)
+			if err != nil {
+				panic(err)
+			}
+			defer r.Body.Close()
 		} else if q, ok := strings.CutPrefix(tag, "query:"); ok {
-			value = r.URL.Query().Get(q)
+			v := r.URL.Query().Get(q)
+			if field.Type.Kind() == reflect.Int {
+				var err error
+				value, err = strconv.Atoi(v)
+				if err != nil {
+					panic(err)
+				}
+			} else {
+				value = v
+			}
 		} else if h, ok := strings.CutPrefix(tag, "header:"); ok {
 			value = r.Header.Get(h)
 		}

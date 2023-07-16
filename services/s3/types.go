@@ -66,17 +66,17 @@ type CreateMultipartUploadOutput struct {
 }
 
 type UploadPartInput struct {
-	Bucket     string
-	Key        string
-	UploadId   string
-	PartNumber int
-	Data       []byte
+	Bucket     string `s3:"bucket"`
+	Key        string `s3:"key"`
+	UploadId   string `s3:"query:uploadId"`
+	PartNumber int    `s3:"query:partNumber"`
+	Data       []byte `s3:"body"`
 }
 
 type UploadPartOutput struct {
-	ETag                 string
-	ServerSideEncryption string
-	SSEKMSKeyId          string
+	ETag                 string `s3:"header:etag"`
+	ServerSideEncryption string `s3:"header:x-amz-server-side-encryption"`
+	SSEKMSKeyId          string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
 }
 
 type CompleteMultipartUploadInput struct {

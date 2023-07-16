@@ -12,6 +12,11 @@ type CreateBucketOutput struct {
 	Location string
 }
 
+type GetObjectTaggingInput struct {
+	Bucket string `s3:"bucket"`
+	Key    string `s3:"key"`
+}
+
 type GetObjectTaggingOutput struct {
 	XMLName xml.Name `xml:"Tagging"`
 	TagSet  TagSet
@@ -97,3 +102,10 @@ type CompleteMultipartUploadOutput struct {
 	ServerSideEncryption string `xml:"-"`
 	SSEKMSKeyId          string `xml:"-"`
 }
+
+type DeleteObjectInput struct {
+	Bucket string `s3:"bucket"`
+	Key    string `s3:"key"`
+}
+
+type DeleteObjectOutput struct{}

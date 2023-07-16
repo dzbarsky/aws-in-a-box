@@ -19,6 +19,32 @@ func writeXML(w io.Writer, output any) {
 	}
 }
 
+func handle[Input any, Output any](
+	r *http.Request,
+	w http.ResponseWriter,
+	handler func(input Input) (*Output, *awserrors.Error),
+) {
+	var input Input
+	err := unmarshal(r, &input)
+	if err != nil {
+		panic(err)
+	}
+	output, awserr := handler(input)
+	if err != nil {
+		fmt.Println("ERRR", err)
+		w.WriteHeader(awserr.Code)
+		w.Write([]byte(awserr.Body.Message))
+	} else {
+		w.WriteHeader(http.StatusOK)
+		if output == nil {
+			return
+		}
+		if _, ok := reflect.ValueOf(output).Elem().Type().FieldByName("XMLName"); ok {
+			writeXML(w, output)
+		}
+	}
+}
+
 func NewHandler(s3 *S3) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		//log.Print("Handling S3 request ", r.Method, " ", r.URL.String())
@@ -29,28 +55,9 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 			if r.URL.Query().Has("tagging") {
 				switch r.Method {
 				case "GET":
-					tagging, err := s3.GetObjectTagging(parts[0], parts[1])
-					if err != nil {
-						fmt.Println("ERRR", err)
-						w.WriteHeader(err.Code)
-						w.Write([]byte(err.Body.Message))
-					} else {
-						w.WriteHeader(http.StatusOK)
-						writeXML(w, tagging)
-					}
+					handle(r, w, s3.GetObjectTagging)
 				case "PUT":
-					var input PutObjectTaggingInput
-					err := unmarshal(r, &input)
-					if err != nil {
-						panic(err)
-					}
-					_, awserr := s3.PutObjectTagging(input)
-					if awserr != nil {
-						w.WriteHeader(awserr.Code)
-						w.Write([]byte(awserr.Body.Message))
-					} else {
-						w.WriteHeader(http.StatusOK)
-					}
+					handle(r, w, s3.PutObjectTagging)
 				}
 				return
 			} else if r.URL.Query().Has("uploads") {
@@ -175,10 +182,7 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 					writeXML(w, output)
 				}
 			case http.MethodDelete:
-				err := s3.DeleteObject(parts[0], parts[1])
-				if err != nil {
-					panic(err)
-				}
+				handle(r, w, s3.DeleteObject)
 			default:
 				panic("unknown method")
 			}

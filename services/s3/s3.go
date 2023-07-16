@@ -184,36 +184,36 @@ func etag(data []byte) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html
-func (s *S3) DeleteObject(bucket string, key string) *awserrors.Error {
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObject.html
+func (s *S3) DeleteObject(input DeleteObjectInput) (*DeleteObjectOutput, *awserrors.Error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	b, ok := s.buckets[bucket]
-	if !ok {
-		return awserrors.XXX_TODO("no bucket")
-	}
-
-	_, ok = b.objects[key]
-	if !ok {
-		return awserrors.XXX_TODO("no item")
-	}
-
-	delete(b.objects, key)
-	return nil
-}
-
-// https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html
-func (s *S3) GetObjectTagging(bucket string, key string) (*GetObjectTaggingOutput, *awserrors.Error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	b, ok := s.buckets[bucket]
+	b, ok := s.buckets[input.Bucket]
 	if !ok {
 		return nil, awserrors.XXX_TODO("no bucket")
 	}
 
-	object, ok := b.objects[key]
+	_, ok = b.objects[input.Key]
+	if !ok {
+		return nil, awserrors.XXX_TODO("no item")
+	}
+
+	delete(b.objects, input.Key)
+	return nil, nil
+}
+
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html
+func (s *S3) GetObjectTagging(input GetObjectTaggingInput) (*GetObjectTaggingOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	b, ok := s.buckets[input.Bucket]
+	if !ok {
+		return nil, awserrors.XXX_TODO("no bucket")
+	}
+
+	object, ok := b.objects[input.Key]
 	if !ok {
 		return nil, awserrors.XXX_TODO("no item")
 	}

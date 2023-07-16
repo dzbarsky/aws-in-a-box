@@ -82,24 +82,10 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 					w.WriteHeader(http.StatusOK)
 				}
 			case http.MethodPut:
-				var awserr *awserrors.Error
-				var output *CopyObjectOutput
 				if r.Header.Get("x-amz-copy-source") != "" {
-					output, awserr = s3.CopyObject(parts[0], parts[1], r.Header)
+					handle(w, r, s3.CopyObject)
 				} else {
-					data, err := io.ReadAll(r.Body)
-					if err != nil {
-						panic(err)
-					}
-					defer r.Body.Close()
-					awserr = s3.PutObject(parts[0], parts[1], data, r.Header)
-				}
-				if awserr != nil {
-					panic(awserr)
-				}
-				w.WriteHeader(http.StatusOK)
-				if output != nil {
-					writeXML(w, output)
+					handle(w, r, s3.PutObject)
 				}
 			case http.MethodDelete:
 				handle(w, r, s3.DeleteObject)

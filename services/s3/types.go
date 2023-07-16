@@ -40,6 +40,45 @@ type PutObjectTaggingInput struct {
 
 type PutObjectTaggingOutput struct{}
 
+type PutObjectInput struct {
+	Bucket                  string `s3:"bucket"`
+	Key                     string `s3:"key"`
+	Data                    []byte `s3:"body"`
+	CopySource              string `s3:"header:x-amz-copy-source"`
+	MetadataDirective       string `s3:"header:x-amz-metadata-directive"`
+	ContentType             string `s3:"header:content-type"`
+	ServerSideEncryption    string `s3:"header:x-amz-server-side-encryption"`
+	SSEKMSKeyId             string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
+	SSEKMSEncryptionContext string `s3:"header:x-amz-server-side-encryption-context"`
+	SSECustomerAlgorithm    string `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
+	// TODO: md5 check
+	SSECustomerKey   string `s3:"header:x-amz-server-side-encryption-customer-key"`
+	Tagging          string `s3:"header:x-amz-tagging"`
+	TaggingDirective string `s3:"header:x-amz-tagging-directive"`
+}
+
+type PutObjectOutput struct {
+	Etag                    string `s3:"header:etag"`
+	SSECustomerAlgorithm    string `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
+	SSEKMSKeyId             string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
+	SSEKMSEncryptionContext string `s3:"header:x-amz-server-side-encryption-context"`
+}
+
+type CopyObjectInput struct {
+	Bucket                  string `s3:"bucket"`
+	Key                     string `s3:"key"`
+	CopySource              string `s3:"header:x-amz-copy-source"`
+	MetadataDirective       string `s3:"header:x-amz-metadata-directive"`
+	ContentType             string `s3:"header:content-type"`
+	ServerSideEncryption    string `s3:"header:x-amz-server-side-encryption"`
+	SSEKMSKeyId             string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
+	SSEKMSEncryptionContext string `s3:"header:x-amz-server-side-encryption-context"`
+	SSECustomerAlgorithm    string `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
+	SSECustomerKey          string `s3:"header:x-amz-server-side-encryption-customer-key"`
+	Tagging                 string `s3:"header:x-amz-tagging"`
+	TaggingDirective        string `s3:"header:x-amz-tagging-directive"`
+}
+
 type CopyObjectOutput struct {
 	XMLName      xml.Name `xml:"CopyObjectResult"`
 	ETag         string

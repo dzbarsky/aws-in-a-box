@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -20,6 +19,7 @@ import (
 
 type Object struct {
 	Data        []byte
+	MD5         [16]byte
 	ContentType string
 
 	Tagging string
@@ -104,35 +104,43 @@ func (s *S3) GetObject(bucket string, key string) (*Object, *awserrors.Error) {
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
-func (s *S3) PutObject(bucket string, key string, data []byte, header http.Header) *awserrors.Error {
+func (s *S3) PutObject(input PutObjectInput) (*PutObjectOutput, *awserrors.Error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	b, ok := s.buckets[bucket]
+	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return awserrors.XXX_TODO("no bucket")
+		return nil, awserrors.XXX_TODO("no bucket")
 	}
 
-	b.objects[key] = &Object{
-		Data:        data,
-		ContentType: header.Get("Content-Type"),
+	object := &Object{
+		Data:        input.Data,
+		MD5:         md5.Sum(input.Data),
+		ContentType: input.ContentType,
 
-		Tagging:              header.Get("x-amz-tagging"),
-		ServerSideEncryption: header.Get("x-amz-server-side-encryption"),
-		SSEKMSKeyId:          header.Get("x-amz-server-side-encryption-aws-kms-key-id"),
-		SSECustomerAlgorithm: header.Get("x-amz-server-side-encryption-customer-algorithm"),
-		SSECustomerKey:       header.Get("x-amz-server-side-encryption-customer-key"),
+		Tagging:              input.Tagging,
+		ServerSideEncryption: input.ServerSideEncryption,
+		SSEKMSKeyId:          input.SSEKMSKeyId,
+		SSECustomerAlgorithm: input.SSECustomerAlgorithm,
+		SSECustomerKey:       input.SSECustomerKey,
 	}
-	return nil
+	b.objects[input.Key] = object
+
+	return &PutObjectOutput{
+		Etag:                    hex.EncodeToString(object.MD5[:]),
+		SSECustomerAlgorithm:    input.SSECustomerAlgorithm,
+		SSEKMSKeyId:             input.SSEKMSKeyId,
+		SSEKMSEncryptionContext: input.SSEKMSEncryptionContext,
+	}, nil
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html
-func (s *S3) CopyObject(bucket string, key string, header http.Header) (*CopyObjectOutput, *awserrors.Error) {
+func (s *S3) CopyObject(input CopyObjectInput) (*CopyObjectOutput, *awserrors.Error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// "/bucket/path/to/key"
-	copySource, err := url.PathUnescape(header.Get("x-amz-copy-source"))
+	copySource, err := url.PathUnescape(input.CopySource)
 	if err != nil {
 		return nil, awserrors.XXX_TODO(err.Error())
 	}
@@ -150,32 +158,29 @@ func (s *S3) CopyObject(bucket string, key string, header http.Header) (*CopyObj
 		return nil, awserrors.XXX_TODO("no source item")
 	}
 
-	metadataDirective := header.Get("x-amz-metadata-directive")
-	if metadataDirective == "REPLACE" {
+	if input.MetadataDirective == "REPLACE" {
 		// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingMetadata.html for full list
-		object.ContentType = header.Get("Content-Type")
-		object.ServerSideEncryption = header.Get("x-amz-server-side-encryption")
-		object.SSEKMSKeyId = header.Get("x-amz-server-side-encryption-aws-kms-key-id")
-		object.SSECustomerAlgorithm = header.Get("x-amz-server-side-encryption-customer-algorithm")
-		object.SSECustomerKey = header.Get("x-amz-server-side-encryption-customer-key")
+		object.ContentType = input.ContentType
+		object.ServerSideEncryption = input.ServerSideEncryption
+		object.SSEKMSKeyId = input.SSEKMSKeyId
+		object.SSECustomerAlgorithm = input.SSECustomerAlgorithm
+		object.SSECustomerKey = input.SSECustomerKey
 	}
 
-	taggingDirective := header.Get("x-amz-tagging-directive")
-	if taggingDirective == "REPLACE" {
-		object.Tagging = header.Get("x-amz-tagging")
+	if input.TaggingDirective == "REPLACE" {
+		object.Tagging = input.Tagging
 	}
 
-	destBucket, ok := s.buckets[bucket]
+	destBucket, ok := s.buckets[input.Bucket]
 	if !ok {
 		return nil, awserrors.XXX_TODO("no bucket")
 	}
 
-	destBucket.objects[key] = object
+	destBucket.objects[input.Key] = object
 	return &CopyObjectOutput{
 		// TODO: Complete guess on format
 		LastModified: time.Now().UTC().Format(time.RFC3339Nano),
-		// TODO: should probably compute this elsewhere
-		ETag: etag(object.Data),
+		ETag:         hex.EncodeToString(object.MD5[:]),
 	}, nil
 }
 

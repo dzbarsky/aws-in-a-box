@@ -19,32 +19,6 @@ func writeXML(w io.Writer, output any) {
 	}
 }
 
-func handle[Input any, Output any](
-	r *http.Request,
-	w http.ResponseWriter,
-	handler func(input Input) (*Output, *awserrors.Error),
-) {
-	var input Input
-	err := unmarshal(r, &input)
-	if err != nil {
-		panic(err)
-	}
-	output, awserr := handler(input)
-	if err != nil {
-		fmt.Println("ERRR", err)
-		w.WriteHeader(awserr.Code)
-		w.Write([]byte(awserr.Body.Message))
-	} else {
-		w.WriteHeader(http.StatusOK)
-		if output == nil {
-			return
-		}
-		if _, ok := reflect.ValueOf(output).Elem().Type().FieldByName("XMLName"); ok {
-			writeXML(w, output)
-		}
-	}
-}
-
 func NewHandler(s3 *S3) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		//log.Print("Handling S3 request ", r.Method, " ", r.URL.String())
@@ -65,21 +39,7 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 				case http.MethodGet:
 					panic("Unhandled GetMultipartUploads")
 				case http.MethodPost:
-					var input CreateMultipartUploadInput
-					err := unmarshal(r, &input)
-					if err != nil {
-						panic(err)
-					}
-					output, awserr := s3.CreateMultipartUpload(input)
-					if awserr != nil {
-						w.WriteHeader(awserr.Code)
-						w.Write([]byte(awserr.Body.Message))
-					} else {
-						w.Header().Set("x-amz-server-side-encryption-aws-kms-key-id", output.SSEKMSKeyId)
-						w.Header().Set("x-amz-server-side-encryption-context", output.SSEKMSEncryptionContext)
-						w.WriteHeader(http.StatusOK)
-						writeXML(w, output)
-					}
+					handle(r, w, s3.CreateMultipartUpload)
 				}
 				return
 			} else if r.URL.Query().Has("uploadId") {
@@ -190,6 +150,20 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 	})
 }
 
+func handle[Input any, Output any](
+	r *http.Request,
+	w http.ResponseWriter,
+	handler func(input Input) (*Output, *awserrors.Error),
+) {
+	var input Input
+	err := unmarshal(r, &input)
+	if err != nil {
+		panic(err)
+	}
+	output, awserr := handler(input)
+	marshal(w, output, awserr)
+}
+
 func unmarshal(r *http.Request, target any) error {
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.SplitN(path, "/", 2)
@@ -220,4 +194,26 @@ func unmarshal(r *http.Request, target any) error {
 		v.Field(i).Set(reflect.ValueOf(value))
 	}
 	return nil
+}
+
+func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
+	if awserr != nil {
+		fmt.Println("ERRR", awserr)
+		w.WriteHeader(awserr.Code)
+		w.Write([]byte(awserr.Body.Message))
+	} else {
+		v := reflect.ValueOf(output).Elem()
+		ty := v.Type()
+		for i := 0; i < ty.NumField(); i++ {
+			tag := ty.Field(i).Tag.Get("s3")
+			if h, ok := strings.CutPrefix(tag, "header:"); ok {
+				w.Header().Set(h, v.Field(i).String())
+			}
+		}
+
+		w.WriteHeader(http.StatusOK)
+		if _, ok := ty.FieldByName("XMLName"); ok {
+			writeXML(w, output)
+		}
+	}
 }

@@ -60,9 +60,9 @@ type CreateMultipartUploadOutput struct {
 	Bucket                  string
 	Key                     string
 	UploadId                string
-	ServerSideEncryption    string `xml:"-"`
-	SSEKMSKeyId             string `xml:"-"`
-	SSEKMSEncryptionContext string `xml:"-"`
+	ServerSideEncryption    string `xml:"-" s3:"header:x-amz-server-side-encryption"`
+	SSEKMSKeyId             string `xml:"-" s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
+	SSEKMSEncryptionContext string `xml:"-" s3:"header:x-amz-server-side-encryption-context"`
 }
 
 type UploadPartInput struct {

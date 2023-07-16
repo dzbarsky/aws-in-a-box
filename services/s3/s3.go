@@ -257,9 +257,8 @@ func (s *S3) PutObjectTagging(input PutObjectTaggingInput) (*PutObjectTaggingOut
 		}
 	}
 	object.Tagging = tagging.String()
-	fmt.Println("NEW TAG", object.Tagging)
 
-	return nil, nil
+	return &PutObjectTaggingOutput{}, nil
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html

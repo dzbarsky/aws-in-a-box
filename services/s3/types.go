@@ -99,8 +99,8 @@ type CompleteMultipartUploadOutput struct {
 	Bucket               string
 	Key                  string
 	ETag                 string
-	ServerSideEncryption string `xml:"-"`
-	SSEKMSKeyId          string `xml:"-"`
+	ServerSideEncryption string `xml:"-" s3:"header:x-amz-server-side-encryption"`
+	SSEKMSKeyId          string `xml:"-" s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
 }
 
 type DeleteObjectInput struct {

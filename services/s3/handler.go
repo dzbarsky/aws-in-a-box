@@ -29,9 +29,9 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 			if r.URL.Query().Has("tagging") {
 				switch r.Method {
 				case "GET":
-					handle(r, w, s3.GetObjectTagging)
+					handle(w, r, s3.GetObjectTagging)
 				case "PUT":
-					handle(r, w, s3.PutObjectTagging)
+					handle(w, r, s3.PutObjectTagging)
 				}
 				return
 			} else if r.URL.Query().Has("uploads") {
@@ -39,7 +39,7 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 				case http.MethodGet:
 					panic("Unhandled GetMultipartUploads")
 				case http.MethodPost:
-					handle(r, w, s3.CreateMultipartUpload)
+					handle(w, r, s3.CreateMultipartUpload)
 				}
 				return
 			} else if r.URL.Query().Has("uploadId") {
@@ -73,21 +73,7 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 					}
 
 				case http.MethodPost:
-					var input CompleteMultipartUploadInput
-					err := unmarshal(r, &input)
-					if err != nil {
-						panic(err)
-					}
-					output, awserr := s3.CompleteMultipartUpload(input)
-					if awserr != nil {
-						w.WriteHeader(awserr.Code)
-						w.Write([]byte(awserr.Body.Message))
-					} else {
-						w.Header().Set("x-amz-server-side-encryption", output.ServerSideEncryption)
-						w.Header().Set("x-amz-server-side-encryption-aws-kms-key-id", output.SSEKMSKeyId)
-						w.WriteHeader(http.StatusOK)
-						writeXML(w, output)
-					}
+					handle(w, r, s3.CompleteMultipartUpload)
 				}
 				return
 			}
@@ -142,7 +128,7 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 					writeXML(w, output)
 				}
 			case http.MethodDelete:
-				handle(r, w, s3.DeleteObject)
+				handle(w, r, s3.DeleteObject)
 			default:
 				panic("unknown method")
 			}
@@ -151,8 +137,8 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 }
 
 func handle[Input any, Output any](
-	r *http.Request,
 	w http.ResponseWriter,
+	r *http.Request,
 	handler func(input Input) (*Output, *awserrors.Error),
 ) {
 	var input Input

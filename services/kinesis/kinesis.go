@@ -41,7 +41,7 @@ type Consumer struct {
 	StreamName        string
 	CreationTimestamp int64
 
-	ConsumerChansByShardId map[string]consumerSubscription
+	SubscriptionsByShardId map[string]consumerSubscription
 }
 
 type consumerSubscription struct {

@@ -54,7 +54,7 @@ func (k *Kinesis) RegisterStreamConsumer(input RegisterStreamConsumerInput) (*Re
 		Name:                   input.ConsumerName,
 		CreationTimestamp:      now,
 		StreamName:             stream.Name,
-		ConsumerChansByShardId: make(map[string]consumerSubscription),
+		SubscriptionsByShardId: make(map[string]consumerSubscription),
 	}
 	stream.consumersByName[input.ConsumerName] = c
 	k.consumersByARN[arn] = c
@@ -119,6 +119,17 @@ func (k *Kinesis) DeregisterStreamConsumer(input DeregisterStreamConsumerInput) 
 
 	delete(k.consumersByARN, c.ARN)
 	delete(k.streams[c.StreamName].consumersByName, c.Name)
+
+	for shardId, sub := range c.SubscriptionsByShardId {
+		close(sub.Chan)
+		shard, err := k.lockedGetShard(c.StreamName, shardId)
+		if err != nil {
+			// This shouldn't happen, we need to protect against dangling data when the stream is destroyed
+			return nil, err
+		}
+		delete(shard.ConsumerChans, sub.Chan)
+	}
+
 	return nil, nil
 }
 
@@ -159,7 +170,7 @@ func (k *Kinesis) SubscribeToShard(input SubscribeToShardInput) (chan *APISubscr
 	}
 
 	now := time.Now()
-	subscription, ok := c.ConsumerChansByShardId[input.ShardId]
+	subscription, ok := c.SubscriptionsByShardId[input.ShardId]
 	if ok {
 		if subscription.CreationTime.Sub(now) < 5*time.Second {
 			return nil, awserrors.ResourceInUseException("")
@@ -200,7 +211,7 @@ func (k *Kinesis) SubscribeToShard(input SubscribeToShardInput) (chan *APISubscr
 	}
 
 	shard.ConsumerChans[outputChan] = struct{}{}
-	c.ConsumerChansByShardId[input.ShardId] = consumerSubscription{
+	c.SubscriptionsByShardId[input.ShardId] = consumerSubscription{
 		CreationTime: now,
 		Chan:         outputChan,
 	}
@@ -211,7 +222,7 @@ func (k *Kinesis) SubscribeToShard(input SubscribeToShardInput) (chan *APISubscr
 		defer k.mu.Unlock()
 		close(outputChan)
 		delete(shard.ConsumerChans, outputChan)
-		delete(c.ConsumerChansByShardId, input.ShardId)
+		delete(c.SubscriptionsByShardId, input.ShardId)
 	}()
 
 	return outputChan, nil

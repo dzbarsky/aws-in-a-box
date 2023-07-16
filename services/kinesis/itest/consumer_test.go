@@ -42,13 +42,7 @@ func makeClientServerPair() (*kinesis.Client, *http.Server) {
 func TestSubscribeToShard(t *testing.T) {
 	ctx := context.Background()
 	client, srv := makeClientServerPair()
-	defer func() {
-		// The shutdown is blocked by the 5-minute connection timeout.
-		// Not sure how to handle this properly yet, but we don't want the
-		// test to hang.
-		ctx, _ := context.WithTimeout(ctx, 1*time.Millisecond)
-		srv.Shutdown(ctx)
-	}()
+	defer srv.Shutdown(ctx)
 
 	streamName := aws.String("stream")
 	_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
@@ -117,6 +111,7 @@ func TestSubscribeToShard(t *testing.T) {
 		}
 	}()
 
+WaitForEvents:
 	for {
 		e := <-stream.Events()
 		event := e.(*types.SubscribeToShardEventStreamMemberSubscribeToShardEvent).Value
@@ -124,10 +119,19 @@ func TestSubscribeToShard(t *testing.T) {
 			if bytes.Equal(record.Data, []byte{maxMessageData}) {
 				err = stream.Close()
 				if err != nil {
-					panic(err)
+					t.Fatal(err)
 				}
-				return
+				break WaitForEvents
 			}
 		}
+	}
+
+	_, err = client.DeregisterStreamConsumer(ctx, &kinesis.DeregisterStreamConsumerInput{
+		StreamARN:    streamSummary.StreamDescriptionSummary.StreamARN,
+		ConsumerName: consumerName,
+	})
+
+	if err != nil {
+		t.Fatal(err)
 	}
 }

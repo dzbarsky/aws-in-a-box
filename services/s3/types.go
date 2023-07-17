@@ -18,6 +18,10 @@ type CreateBucketOutput struct {
 	Location string
 }
 
+type DeleteBucketInput struct {
+	Bucket string `s3:"bucket"`
+}
+
 type GetObjectTaggingInput struct {
 	Bucket string `s3:"bucket"`
 	Key    string `s3:"key"`

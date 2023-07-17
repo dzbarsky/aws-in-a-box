@@ -84,6 +84,24 @@ func (s *S3) CreateBucket(input CreateBucketInput) (*CreateBucketOutput, *awserr
 	}, nil
 }
 
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucket.html
+func (s *S3) DeleteBucket(input DeleteBucketInput) (*Response204, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	bucket, ok := s.buckets[input.Bucket]
+	if ok {
+		return nil, awserrors.XXX_TODO("bucket already exists")
+	}
+
+	if len(bucket.objects) != 0 {
+		return nil, awserrors.XXX_TODO("bucket must be empty")
+	}
+
+	delete(s.buckets, input.Bucket)
+	return response204, nil
+}
+
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html
 func (s *S3) GetObject(bucket string, key string) (*Object, *awserrors.Error) {
 	s.mu.Lock()

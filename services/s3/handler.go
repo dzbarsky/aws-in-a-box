@@ -29,6 +29,8 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 			switch r.Method {
 			case http.MethodPut:
 				handle(w, r, s3.CreateBucket)
+			case http.MethodDelete:
+				handle(w, r, s3.DeleteBucket)
 			}
 		}
 		if len(parts) == 2 {

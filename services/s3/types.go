@@ -22,6 +22,27 @@ type DeleteBucketInput struct {
 	Bucket string `s3:"bucket"`
 }
 
+type GetBucketTaggingInput struct {
+	Bucket string `s3:"bucket"`
+}
+
+type GetBucketTaggingOutput struct {
+	XMLName xml.Name `xml:"Tagging"`
+	TagSet  TagSet
+}
+
+type PutBucketTaggingInput struct {
+	XMLName xml.Name `xml:"Tagging"`
+	Bucket  string   `s3:"bucket"`
+	TagSet  TagSet
+}
+
+type PutBucketTaggingOutput struct{}
+
+type DeleteBucketTaggingInput struct {
+	Bucket string `s3:"bucket"`
+}
+
 type GetObjectTaggingInput struct {
 	Bucket string `s3:"bucket"`
 	Key    string `s3:"key"`

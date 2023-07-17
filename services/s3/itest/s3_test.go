@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -191,5 +192,66 @@ func TestObjectTagging(t *testing.T) {
 	}
 	if *tags[0].Value != "value2" {
 		t.Fatal("bad value", *tags[0].Value)
+	}
+}
+
+func TestBucketTagging(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	tagging, err := client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{
+		Bucket: &bucket,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(tagging.TagSet) != 0 {
+		t.Fatal("bad tags")
+	}
+
+	tag := types.Tag{
+		Key:   aws.String("key"),
+		Value: aws.String("value"),
+	}
+
+	_, err = client.PutBucketTagging(ctx, &s3.PutBucketTaggingInput{
+		Bucket: &bucket,
+		Tagging: &types.Tagging{
+			TagSet: []types.Tag{tag},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tagging, err = client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{
+		Bucket: &bucket,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(tagging.TagSet, []types.Tag{tag}) {
+		t.Fatal("bad tags")
+	}
+
+	_, err = client.DeleteBucketTagging(ctx, &s3.DeleteBucketTaggingInput{
+		Bucket: &bucket,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tagging, err = client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{
+		Bucket: &bucket,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(tagging.TagSet) != 0 {
+		t.Fatal("bad tags")
 	}
 }

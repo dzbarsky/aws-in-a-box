@@ -33,6 +33,7 @@ type Object struct {
 
 type Bucket struct {
 	objects map[string]*Object
+	TagSet  TagSet
 }
 
 type multipartUpload struct {
@@ -89,12 +90,12 @@ func (s *S3) DeleteBucket(input DeleteBucketInput) (*Response204, *awserrors.Err
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	bucket, ok := s.buckets[input.Bucket]
+	b, ok := s.buckets[input.Bucket]
 	if ok {
 		return nil, awserrors.XXX_TODO("bucket already exists")
 	}
 
-	if len(bucket.objects) != 0 {
+	if len(b.objects) != 0 {
 		return nil, awserrors.XXX_TODO("bucket must be empty")
 	}
 
@@ -422,5 +423,48 @@ func (s *S3) AbortMultipartUpload(input AbortMultipartUploadInput) (*Response204
 	defer s.mu.Unlock()
 
 	delete(s.multipartUploads, input.UploadId)
+	return response204, nil
+}
+
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketTagging.html
+func (s *S3) GetBucketTagging(input GetBucketTaggingInput) (*GetBucketTaggingOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	b, ok := s.buckets[input.Bucket]
+	if !ok {
+		return nil, awserrors.XXX_TODO("no bucket")
+	}
+
+	return &GetBucketTaggingOutput{
+		TagSet: b.TagSet,
+	}, nil
+}
+
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketTagging.html
+func (s *S3) PutBucketTagging(input PutBucketTaggingInput) (*PutBucketTaggingOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	b, ok := s.buckets[input.Bucket]
+	if !ok {
+		return nil, awserrors.XXX_TODO("no bucket")
+	}
+	b.TagSet = input.TagSet
+
+	return &PutBucketTaggingOutput{}, nil
+}
+
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketTagging.html
+func (s *S3) DeleteBucketTagging(input DeleteBucketTaggingInput) (*Response204, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	b, ok := s.buckets[input.Bucket]
+	if !ok {
+		return nil, awserrors.XXX_TODO("no bucket")
+	}
+
+	b.TagSet = TagSet{}
 	return response204, nil
 }

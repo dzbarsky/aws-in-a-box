@@ -266,6 +266,25 @@ func (s *S3) PutObjectTagging(input PutObjectTaggingInput) (*PutObjectTaggingOut
 	return &PutObjectTaggingOutput{}, nil
 }
 
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjectTagging.html
+func (s *S3) DeleteObjectTagging(input DeleteObjectTaggingInput) (*Response204, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	b, ok := s.buckets[input.Bucket]
+	if !ok {
+		return nil, awserrors.XXX_TODO("no bucket")
+	}
+
+	object, ok := b.objects[input.Key]
+	if !ok {
+		return nil, awserrors.XXX_TODO("no item")
+	}
+	object.Tagging = ""
+
+	return response204, nil
+}
+
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
 func (s *S3) CreateMultipartUpload(input CreateMultipartUploadInput) (*CreateMultipartUploadOutput, *awserrors.Error) {
 	s.mu.Lock()

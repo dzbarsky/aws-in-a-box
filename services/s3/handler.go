@@ -28,10 +28,12 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 		if len(parts) == 2 {
 			if r.URL.Query().Has("tagging") {
 				switch r.Method {
-				case "GET":
+				case http.MethodGet:
 					handle(w, r, s3.GetObjectTagging)
-				case "PUT":
+				case http.MethodPut:
 					handle(w, r, s3.PutObjectTagging)
+				case http.MethodDelete:
+					handle(w, r, s3.DeleteObjectTagging)
 				}
 				return
 			} else if r.URL.Query().Has("uploads") {
@@ -177,7 +179,12 @@ func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
 			}
 		}
 
-		w.WriteHeader(http.StatusOK)
+		if output == response204 {
+			w.WriteHeader(http.StatusNoContent)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+
 		if _, ok := ty.FieldByName("XMLName"); ok {
 			writeXML(w, output)
 		}

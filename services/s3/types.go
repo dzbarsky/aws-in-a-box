@@ -4,6 +4,10 @@ import (
 	"encoding/xml"
 )
 
+type Response204 struct{}
+
+var response204 = &Response204{}
+
 type CreateBucketInput struct {
 	Bucket string
 }
@@ -39,6 +43,11 @@ type PutObjectTaggingInput struct {
 }
 
 type PutObjectTaggingOutput struct{}
+
+type DeleteObjectTaggingInput struct {
+	Bucket string `s3:"bucket"`
+	Key    string `s3:"key"`
+}
 
 type PutObjectInput struct {
 	Bucket                  string `s3:"bucket"`

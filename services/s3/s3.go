@@ -118,7 +118,6 @@ func (s *S3) GetObject(bucket string, key string) (*Object, *awserrors.Error) {
 		return nil, awserrors.XXX_TODO("no item")
 	}
 
-	fmt.Println("OBJECT", object)
 	return object, nil
 }
 

@@ -50,6 +50,8 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 					handle(w, r, s3.UploadPart)
 				case http.MethodPost:
 					handle(w, r, s3.CompleteMultipartUpload)
+				case http.MethodDelete:
+					handle(w, r, s3.AbortMultipartUpload)
 				}
 				return
 			}

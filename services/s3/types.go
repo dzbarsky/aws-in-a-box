@@ -127,6 +127,12 @@ type UploadPartOutput struct {
 	SSEKMSKeyId          string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
 }
 
+type AbortMultipartUploadInput struct {
+	UploadId string `s3:"query:uploadId"`
+	Bucket   string `s3:"bucket"`
+	Key      string `s3:"key"`
+}
+
 type CompleteMultipartUploadInput struct {
 	XMLName  xml.Name `xml:"CompleteMultipartUpload"`
 	UploadId string   `s3:"query:uploadId"`

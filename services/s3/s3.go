@@ -397,3 +397,12 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 		SSEKMSKeyId:          object.SSEKMSKeyId,
 	}, nil
 }
+
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html
+func (s *S3) AbortMultipartUpload(input AbortMultipartUploadInput) (*Response204, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.multipartUploads, input.UploadId)
+	return response204, nil
+}

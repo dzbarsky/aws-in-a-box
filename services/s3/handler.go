@@ -25,6 +25,12 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 		path := strings.Trim(r.URL.Path, "/")
 		parts := strings.SplitN(path, "/", 2)
 
+		if len(parts) == 1 {
+			switch r.Method {
+			case http.MethodPut:
+				handle(w, r, s3.CreateBucket)
+			}
+		}
 		if len(parts) == 2 {
 			if r.URL.Query().Has("tagging") {
 				switch r.Method {

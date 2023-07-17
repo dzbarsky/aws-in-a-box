@@ -9,7 +9,9 @@ type Response204 struct{}
 var response204 = &Response204{}
 
 type CreateBucketInput struct {
-	Bucket string
+	XMLName            xml.Name `xml:"CreateBucketConfiguration"`
+	Bucket             string   `s3:"bucket"`
+	LocationConstraint string
 }
 
 type CreateBucketOutput struct {

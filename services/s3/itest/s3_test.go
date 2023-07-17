@@ -25,12 +25,6 @@ func makeClientServerPair() (*s3.Client, *http.Server) {
 	}
 	// TODO: Move this to an API call once we have routing
 	impl := s3Impl.New(listener.Addr().String())
-	_, awserr := impl.CreateBucket(s3Impl.CreateBucketInput{
-		Bucket: bucket,
-	})
-	if awserr != nil {
-		panic(err)
-	}
 	srv := server.New(s3Impl.NewHandler(impl))
 	go srv.Serve(listener)
 
@@ -40,6 +34,12 @@ func makeClientServerPair() (*s3.Client, *http.Server) {
 		UsePathStyle: true,
 		Retryer:      aws.NopRetryer{},
 	})
+	_, err = client.CreateBucket(context.Background(), &s3.CreateBucketInput{
+		Bucket: &bucket,
+	})
+	if err != nil {
+		panic(err)
+	}
 
 	return client, srv
 }

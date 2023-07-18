@@ -42,6 +42,8 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 				handle(w, r, s3.CreateBucket)
 			case http.MethodDelete:
 				handle(w, r, s3.DeleteBucket)
+			case http.MethodHead:
+				handle(w, r, s3.HeadBucket)
 			}
 		}
 		if len(parts) == 2 {
@@ -77,31 +79,31 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 			switch r.Method {
 			case http.MethodGet:
 				object, err := s3.GetObject(parts[0], parts[1])
-				w.Header().Set("Content-Type", object.ContentType)
-				w.Header().Set("x-amz-server-side-encryption", object.ServerSideEncryption)
-				w.Header().Set("x-amz-server-side-encryption-customer-key", object.SSECustomerKey)
-				w.Header().Set("x-amz-server-side-encryption-customer-algorithm", object.SSECustomerAlgorithm)
-				w.Header().Set("x-amz-server-side-encryption-aws-kms-key-id", object.SSEKMSKeyId)
-				w.Header().Set("Content-Length", strconv.Itoa(len(object.Data)))
-				w.Header().Set("Accept-Ranges", "bytes")
 				if err != nil {
 					w.WriteHeader(err.Code)
 					w.Write([]byte(err.Body.Message))
 				} else {
+					w.Header().Set("Content-Type", object.ContentType)
+					w.Header().Set("x-amz-server-side-encryption", object.ServerSideEncryption)
+					w.Header().Set("x-amz-server-side-encryption-customer-key", object.SSECustomerKey)
+					w.Header().Set("x-amz-server-side-encryption-customer-algorithm", object.SSECustomerAlgorithm)
+					w.Header().Set("x-amz-server-side-encryption-aws-kms-key-id", object.SSEKMSKeyId)
+					w.Header().Set("Content-Length", strconv.Itoa(len(object.Data)))
+					w.Header().Set("Accept-Ranges", "bytes")
 					w.WriteHeader(http.StatusOK)
 					w.Write(object.Data)
 				}
 			case http.MethodHead:
 				object, err := s3.GetObject(parts[0], parts[1])
-				w.Header().Set("Content-Type", object.ContentType)
-				w.Header().Set("x-amz-server-side-encryption", object.ServerSideEncryption)
-				w.Header().Set("x-amz-server-side-encryption-customer-algorithm", object.SSECustomerAlgorithm)
-				w.Header().Set("x-amz-server-side-encryption-aws-kms-key-id", object.SSEKMSKeyId)
-				w.Header().Set("Accept-Ranges", "bytes")
 				if err != nil {
 					w.WriteHeader(err.Code)
 					w.Write([]byte(err.Body.Message))
 				} else {
+					w.Header().Set("Content-Type", object.ContentType)
+					w.Header().Set("x-amz-server-side-encryption", object.ServerSideEncryption)
+					w.Header().Set("x-amz-server-side-encryption-customer-algorithm", object.SSECustomerAlgorithm)
+					w.Header().Set("x-amz-server-side-encryption-aws-kms-key-id", object.SSEKMSKeyId)
+					w.Header().Set("Accept-Ranges", "bytes")
 					w.WriteHeader(http.StatusOK)
 				}
 			case http.MethodPut:

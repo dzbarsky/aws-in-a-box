@@ -85,6 +85,19 @@ func (s *S3) CreateBucket(input CreateBucketInput) (*CreateBucketOutput, *awserr
 	}, nil
 }
 
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadBucket.html
+func (s *S3) HeadBucket(input HeadBucketInput) (*HeadBucketOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, ok := s.buckets[input.Bucket]
+	if !ok {
+		return nil, NotFound()
+	}
+
+	return &HeadBucketOutput{}, nil
+}
+
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucket.html
 func (s *S3) DeleteBucket(input DeleteBucketInput) (*Response204, *awserrors.Error) {
 	s.mu.Lock()
@@ -110,12 +123,12 @@ func (s *S3) GetObject(bucket string, key string) (*Object, *awserrors.Error) {
 
 	b, ok := s.buckets[bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NotFound()
 	}
 
 	object, ok := b.objects[key]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no item")
+		return nil, NotFound()
 	}
 
 	return object, nil

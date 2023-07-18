@@ -22,6 +22,12 @@ type DeleteBucketInput struct {
 	Bucket string `s3:"bucket"`
 }
 
+type HeadBucketInput struct {
+	Bucket string `s3:"bucket"`
+}
+
+type HeadBucketOutput struct{}
+
 type GetBucketTaggingInput struct {
 	Bucket string `s3:"bucket"`
 }

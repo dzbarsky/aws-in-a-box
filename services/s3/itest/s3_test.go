@@ -24,9 +24,8 @@ func makeClientServerPair() (*s3.Client, *http.Server) {
 	if err != nil {
 		panic(err)
 	}
-	// TODO: Move this to an API call once we have routing
 	impl := s3Impl.New(listener.Addr().String())
-	srv := server.New(s3Impl.NewHandler(impl))
+	srv := server.NewWithHandlerChain(s3Impl.NewHandler(impl))
 	go srv.Serve(listener)
 
 	client := s3.New(s3.Options{

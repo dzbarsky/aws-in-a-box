@@ -3,11 +3,11 @@ package main
 import (
 	"flag"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
 	"aws-in-a-box/arn"
+	"aws-in-a-box/http"
 	"aws-in-a-box/server"
 	"aws-in-a-box/services/dynamodb"
 	"aws-in-a-box/services/kinesis"
@@ -32,12 +32,11 @@ func main() {
 	enableDynamoDB := flag.Bool("experimental_enableDynamoDB", true, "Enable DynamoDB service")
 
 	enableS3 := flag.Bool("experimental_enableS3", true, "Enable S3 service")
-	s3Addr := flag.String("s3Addr", "localhost:4571", "Address to run s3 server")
 	s3InitialBuckets := flag.String("s3InitialBuckets", "", "Buckets to create at startup. Example: bucket1,bucket2,bucket3")
 
 	flag.Parse()
 
-	methodRegistry := make(map[string]http.HandlerFunc)
+	methodRegistry := make(http.Registry)
 
 	arnGenerator := arn.Generator{
 		// TODO: make these configurable?
@@ -72,19 +71,19 @@ func main() {
 		//log.Println("Enabled DynamoDB (EXPERIMENTAL!!!)")
 	}
 
+	handlerChain := []server.HandlerFunc{server.HandlerFuncFromRegistry(methodRegistry)}
+
 	if *enableS3 {
-		s := s3.New(*s3Addr)
+		s := s3.New(*addr)
 		for _, name := range strings.Split(*s3InitialBuckets, ",") {
 			s.CreateBucket(s3.CreateBucketInput{
 				Bucket: name,
 			})
 		}
-		s3Server := server.New(s3.NewHandler(s))
-		s3Server.Addr = *s3Addr
-		go s3Server.ListenAndServe()
+		handlerChain = append(handlerChain, s3.NewHandler(s))
 	}
 
-	srv := server.NewWithRegistry(methodRegistry)
+	srv := server.NewWithHandlerChain(handlerChain...)
 	srv.Addr = *addr
 
 	err := srv.ListenAndServe()

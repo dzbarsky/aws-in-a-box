@@ -19,8 +19,8 @@ func writeXML(w io.Writer, output any) {
 	}
 }
 
-func NewHandler(s3 *S3) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
+	return func(w http.ResponseWriter, r *http.Request) bool {
 		//log.Print("Handling S3 request ", r.Method, " ", r.URL.String())
 		path := strings.Trim(r.URL.Path, "/")
 		parts := strings.SplitN(path, "/", 2)
@@ -35,7 +35,7 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 				case http.MethodDelete:
 					handle(w, r, s3.DeleteBucketTagging)
 				}
-				return
+				return true
 			}
 			switch r.Method {
 			case http.MethodPut:
@@ -54,7 +54,7 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 				case http.MethodDelete:
 					handle(w, r, s3.DeleteObjectTagging)
 				}
-				return
+				return true
 			} else if r.URL.Query().Has("uploads") {
 				switch r.Method {
 				case http.MethodGet:
@@ -62,7 +62,7 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 				case http.MethodPost:
 					handle(w, r, s3.CreateMultipartUpload)
 				}
-				return
+				return true
 			} else if r.URL.Query().Has("uploadId") {
 				switch r.Method {
 				case http.MethodPut:
@@ -72,7 +72,7 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 				case http.MethodDelete:
 					handle(w, r, s3.AbortMultipartUpload)
 				}
-				return
+				return true
 			}
 			switch r.Method {
 			case http.MethodGet:
@@ -116,7 +116,8 @@ func NewHandler(s3 *S3) http.HandlerFunc {
 				panic("unknown method")
 			}
 		}
-	})
+		return true
+	}
 }
 
 func handle[Input any, Output any](

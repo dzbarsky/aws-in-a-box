@@ -2,6 +2,7 @@ package s3
 
 import (
 	"encoding/xml"
+	"io"
 )
 
 type Response204 struct{}
@@ -92,7 +93,7 @@ type GetObjectInput struct {
 }
 
 type GetObjectOutput struct {
-	ContentLength        string `s3:"header:content-length"`
+	ContentLength        int64  `s3:"header:content-length"`
 	ETag                 string `s3:"header:etag"`
 	ContentType          string `s3:"header:content-type"`
 	ServerSideEncryption string `s3:"header:x-amz-server-side-encryption"`
@@ -101,20 +102,20 @@ type GetObjectOutput struct {
 	// TODO: md5
 	SSEKMSKeyId string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
 	//PartsCount    int    `s3:"header:x-amz-mp-parts-count"`
-	Body []byte `s3:"body"`
+	Body io.Reader `s3:"body"`
 }
 
 type PutObjectInput struct {
-	Bucket                  string `s3:"bucket"`
-	Key                     string `s3:"key"`
-	Data                    []byte `s3:"body"`
-	CopySource              string `s3:"header:x-amz-copy-source"`
-	MetadataDirective       string `s3:"header:x-amz-metadata-directive"`
-	ContentType             string `s3:"header:content-type"`
-	ServerSideEncryption    string `s3:"header:x-amz-server-side-encryption"`
-	SSEKMSKeyId             string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
-	SSEKMSEncryptionContext string `s3:"header:x-amz-server-side-encryption-context"`
-	SSECustomerAlgorithm    string `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
+	Bucket                  string    `s3:"bucket"`
+	Key                     string    `s3:"key"`
+	Data                    io.Reader `s3:"body"`
+	CopySource              string    `s3:"header:x-amz-copy-source"`
+	MetadataDirective       string    `s3:"header:x-amz-metadata-directive"`
+	ContentType             string    `s3:"header:content-type"`
+	ServerSideEncryption    string    `s3:"header:x-amz-server-side-encryption"`
+	SSEKMSKeyId             string    `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
+	SSEKMSEncryptionContext string    `s3:"header:x-amz-server-side-encryption-context"`
+	SSECustomerAlgorithm    string    `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
 	// TODO: md5 check
 	SSECustomerKey   string `s3:"header:x-amz-server-side-encryption-customer-key"`
 	Tagging          string `s3:"header:x-amz-tagging"`
@@ -169,11 +170,11 @@ type CreateMultipartUploadOutput struct {
 }
 
 type UploadPartInput struct {
-	Bucket     string `s3:"bucket"`
-	Key        string `s3:"key"`
-	UploadId   string `s3:"query:uploadId"`
-	PartNumber int    `s3:"query:partNumber"`
-	Data       []byte `s3:"body"`
+	Bucket     string    `s3:"bucket"`
+	Key        string    `s3:"key"`
+	UploadId   string    `s3:"query:uploadId"`
+	PartNumber int       `s3:"query:partNumber"`
+	Data       io.Reader `s3:"body"`
 }
 
 type UploadPartOutput struct {

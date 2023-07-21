@@ -5,7 +5,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,13 +17,17 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"golang.org/x/exp/slices"
 
+	"aws-in-a-box/atomicfile"
 	"aws-in-a-box/awserrors"
 )
 
 type Object struct {
-	Data        []byte
-	MD5         [16]byte
-	ContentType string
+	MD5  []byte
+	ETag string
+
+	ContentType   string
+	ContentLength int64
+	Parts         []Part
 
 	Tagging string
 
@@ -45,25 +52,41 @@ type multipartUpload struct {
 }
 
 type Part struct {
-	Data []byte
-	MD5  [16]byte
+	MD5           []byte
+	ContentLength int64
 }
 
 type S3 struct {
 	// We need the address to generate location URLs.
-	addr string
+	addr       string
+	persistDir string
 
 	mu               sync.Mutex
 	buckets          map[string]*Bucket
 	multipartUploads map[string]*multipartUpload
 }
 
-func New(addr string) *S3 {
+func New(addr string, persistDir string) (*S3, error) {
+	if persistDir == "" {
+		var err error
+		persistDir, err = os.MkdirTemp("", "aws-in-a-box-s3")
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		persistDir = filepath.Join(persistDir, "s3", "cas")
+		err := os.MkdirAll(persistDir, 0700)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &S3{
 		addr:             addr,
+		persistDir:       persistDir,
 		buckets:          make(map[string]*Bucket),
 		multipartUploads: make(map[string]*multipartUpload),
-	}
+	}, nil
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html
@@ -141,8 +164,8 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 	}
 
 	output := &GetObjectOutput{
-		ContentLength:        strconv.Itoa(len(object.Data)),
-		ETag:                 hex.EncodeToString(object.MD5[:]),
+		ContentLength:        object.ContentLength,
+		ETag:                 object.ETag,
 		ContentType:          object.ContentType,
 		ServerSideEncryption: object.ServerSideEncryption,
 		SSECustomerAlgorithm: object.SSECustomerAlgorithm,
@@ -150,9 +173,47 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		SSEKMSKeyId:          object.SSEKMSKeyId,
 	}
 	if includeBody {
-		output.Body = object.Data
+		var md5s [][]byte
+		if len(object.Parts) == 0 {
+			md5s = [][]byte{object.MD5}
+		} else {
+			for _, part := range object.Parts {
+				md5s = append(md5s, part.MD5)
+			}
+		}
+
+		var readers []io.Reader
+		for _, md5 := range md5s {
+			f, err := os.Open(s.filepath(md5))
+			if err != nil {
+				return nil, awserrors.XXX_TODO(err.Error())
+			}
+			readers = append(readers, f)
+		}
+		output.Body = io.MultiReader(readers...)
 	}
 	return output, nil
+}
+
+func (s *S3) filepath(MD5 []byte) string {
+	return filepath.Join(s.persistDir, hex.EncodeToString(MD5))
+}
+
+// drainReaderToMD5Store returns the MD5 and the number of bytes written
+func (s *S3) drainReaderToMD5Store(r io.Reader) ([]byte, int64, error) {
+	md5Writer := md5.New()
+	tempPath := filepath.Join(s.persistDir, uuid.Must(uuid.NewV4()).String())
+	n, err := atomicfile.Write(tempPath, io.TeeReader(r, md5Writer), 0666)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	MD5 := md5Writer.Sum(nil)
+	err = os.Rename(tempPath, s.filepath(MD5))
+	if err != nil {
+		return nil, 0, err
+	}
+	return MD5, n, nil
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
@@ -165,10 +226,16 @@ func (s *S3) PutObject(input PutObjectInput) (*PutObjectOutput, *awserrors.Error
 		return nil, awserrors.XXX_TODO("no bucket")
 	}
 
+	MD5, contentLength, err := s.drainReaderToMD5Store(input.Data)
+	if err != nil {
+		return nil, awserrors.XXX_TODO(err.Error())
+	}
+
 	object := &Object{
-		Data:        input.Data,
-		MD5:         md5.Sum(input.Data),
-		ContentType: input.ContentType,
+		MD5:           MD5,
+		ETag:          hex.EncodeToString(MD5),
+		ContentType:   input.ContentType,
+		ContentLength: contentLength,
 
 		Tagging:              input.Tagging,
 		ServerSideEncryption: input.ServerSideEncryption,
@@ -179,7 +246,7 @@ func (s *S3) PutObject(input PutObjectInput) (*PutObjectOutput, *awserrors.Error
 	b.objects[input.Key] = object
 
 	return &PutObjectOutput{
-		ETag:                    hex.EncodeToString(object.MD5[:]),
+		ETag:                    object.ETag,
 		SSECustomerAlgorithm:    input.SSECustomerAlgorithm,
 		SSEKMSKeyId:             input.SSEKMSKeyId,
 		SSEKMSEncryptionContext: input.SSEKMSEncryptionContext,
@@ -232,7 +299,7 @@ func (s *S3) CopyObject(input CopyObjectInput) (*CopyObjectOutput, *awserrors.Er
 	return &CopyObjectOutput{
 		// TODO: Complete guess on format
 		LastModified: time.Now().UTC().Format(time.RFC3339Nano),
-		ETag:         hex.EncodeToString(object.MD5[:]),
+		ETag:         object.ETag,
 	}, nil
 }
 
@@ -383,13 +450,17 @@ func (s *S3) UploadPart(input UploadPartInput) (*UploadPartOutput, *awserrors.Er
 		return nil, awserrors.XXX_TODO("wrong upload")
 	}
 
-	part := Part{
-		Data: input.Data,
-		MD5:  md5.Sum(input.Data),
+	MD5, contentLength, err := s.drainReaderToMD5Store(input.Data)
+	if err != nil {
+		return nil, awserrors.XXX_TODO(err.Error())
 	}
-	upload.Parts[input.PartNumber] = part
+
+	upload.Parts[input.PartNumber] = Part{
+		MD5:           MD5,
+		ContentLength: contentLength,
+	}
 	return &UploadPartOutput{
-		ETag:                 hex.EncodeToString(part.MD5[:]),
+		ETag:                 hex.EncodeToString(MD5),
 		ServerSideEncryption: upload.Object.ServerSideEncryption,
 		SSEKMSKeyId:          upload.Object.SSEKMSKeyId,
 	}, nil
@@ -413,30 +484,27 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 		return a.PartNumber < b.PartNumber
 	})
 
+	object := upload.Object
+
+	var totalContentLength int64
 	var combinedMD5s []byte
-	combinedDataLen := 0
 	for _, partSpec := range input.Part {
 		part, ok := upload.Parts[partSpec.PartNumber]
 		if !ok {
 			return nil, awserrors.XXX_TODO("missing part")
 		}
 
-		if partSpec.ETag != hex.EncodeToString(part.MD5[:]) {
+		if partSpec.ETag != hex.EncodeToString(part.MD5) {
 			return nil, awserrors.XXX_TODO("wrong part")
 		}
 
-		combinedMD5s = append(combinedMD5s, part.MD5[:]...)
-		combinedDataLen += len(part.Data)
+		combinedMD5s = append(combinedMD5s, part.MD5...)
+		object.Parts = append(object.Parts, Part{MD5: part.MD5, ContentLength: part.ContentLength})
+		totalContentLength += part.ContentLength
 	}
+	object.ContentLength = totalContentLength
+	object.ETag = etag(combinedMD5s) + "-" + strconv.Itoa(len(input.Part))
 
-	combinedData := make([]byte, 0, combinedDataLen)
-	for _, partSpec := range input.Part {
-		part := upload.Parts[partSpec.PartNumber]
-		combinedData = append(combinedData, part.Data...)
-	}
-
-	object := upload.Object
-	object.Data = combinedData
 	s.buckets[input.Bucket].objects[input.Key] = &object
 	delete(s.multipartUploads, input.UploadId)
 
@@ -444,7 +512,7 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 		Bucket:               input.Bucket,
 		Key:                  input.Key,
 		Location:             fmt.Sprintf("http://%s/%s/%s", s.addr, input.Bucket, input.Key),
-		ETag:                 etag(combinedMD5s) + "-" + strconv.Itoa(len(input.Part)),
+		ETag:                 object.ETag,
 		ServerSideEncryption: object.ServerSideEncryption,
 		SSEKMSKeyId:          object.SSEKMSKeyId,
 	}, nil

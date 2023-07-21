@@ -1,6 +1,7 @@
 package key
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"os"
@@ -60,7 +61,8 @@ func (k *Key) persist() error {
 	if err != nil {
 		return err
 	}
-	return atomicfile.Write(k.persistPath, data, 0600)
+	_, err = atomicfile.Write(k.persistPath, bytes.NewBuffer(data), 0600)
+	return err
 }
 
 type serializableKey struct {

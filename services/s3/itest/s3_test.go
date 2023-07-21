@@ -24,7 +24,10 @@ func makeClientServerPair() (*s3.Client, *http.Server) {
 	if err != nil {
 		panic(err)
 	}
-	impl := s3Impl.New(listener.Addr().String())
+	impl, err := s3Impl.New(listener.Addr().String(), "")
+	if err != nil {
+		panic(err)
+	}
 	srv := server.NewWithHandlerChain(s3Impl.NewHandler(impl))
 	go srv.Serve(listener)
 

@@ -74,7 +74,10 @@ func main() {
 	handlerChain := []server.HandlerFunc{server.HandlerFuncFromRegistry(methodRegistry)}
 
 	if *enableS3 {
-		s := s3.New(*addr)
+		s, err := s3.New(*addr, *persistDir)
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, name := range strings.Split(*s3InitialBuckets, ",") {
 			s.CreateBucket(s3.CreateBucketInput{
 				Bucket: name,

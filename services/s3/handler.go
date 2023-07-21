@@ -1,7 +1,6 @@
 package s3
 
 import (
-	"bytes"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -132,12 +131,7 @@ func unmarshal(r *http.Request, target any) error {
 		} else if tag == "key" {
 			value = parts[1]
 		} else if tag == "body" {
-			var err error
-			value, err = io.ReadAll(r.Body)
-			if err != nil {
-				panic(err)
-			}
-			defer r.Body.Close()
+			value = r.Body
 		} else if q, ok := strings.CutPrefix(tag, "query:"); ok {
 			v := r.URL.Query().Get(q)
 			if field.Type.Kind() == reflect.Int {
@@ -169,9 +163,15 @@ func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
 		for i := 0; i < ty.NumField(); i++ {
 			tag := ty.Field(i).Tag.Get("s3")
 			if tag == "body" {
-				body = bytes.NewReader(v.Field(i).Bytes())
+				reflect.ValueOf(&body).Elem().Set(v.Field(i))
 			} else if h, ok := strings.CutPrefix(tag, "header:"); ok {
-				w.Header().Set(h, v.Field(i).String())
+				field := ty.Field(i)
+				switch field.Type.Kind() {
+				case reflect.Int, reflect.Int64:
+					w.Header().Set(h, strconv.Itoa(int(v.Field(i).Int())))
+				default:
+					w.Header().Set(h, v.Field(i).String())
+				}
 			}
 		}
 

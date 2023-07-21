@@ -82,6 +82,28 @@ type DeleteObjectTaggingInput struct {
 	Key    string `s3:"key"`
 }
 
+type GetObjectInput struct {
+	Bucket               string `s3:"bucket"`
+	Key                  string `s3:"key"`
+	PartNumber           string `s3:"query:partNumber"`
+	SSECustomerAlgorithm string `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
+	SSECustomerKey       string `s3:"header:x-amz-server-side-encryption-customer-key"`
+	// TODO: md5 check
+}
+
+type GetObjectOutput struct {
+	ContentLength        string `s3:"header:content-length"`
+	ETag                 string `s3:"header:etag"`
+	ContentType          string `s3:"header:content-type"`
+	ServerSideEncryption string `s3:"header:x-amz-server-side-encryption"`
+	SSECustomerAlgorithm string `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
+	SSECustomerKey       string `s3:"header:x-amz-server-side-encryption-customer-key"`
+	// TODO: md5
+	SSEKMSKeyId string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
+	//PartsCount    int    `s3:"header:x-amz-mp-parts-count"`
+	Body []byte `s3:"body"`
+}
+
 type PutObjectInput struct {
 	Bucket                  string `s3:"bucket"`
 	Key                     string `s3:"key"`
@@ -100,7 +122,7 @@ type PutObjectInput struct {
 }
 
 type PutObjectOutput struct {
-	Etag                    string `s3:"header:etag"`
+	ETag                    string `s3:"header:etag"`
 	SSECustomerAlgorithm    string `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
 	SSEKMSKeyId             string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
 	SSEKMSEncryptionContext string `s3:"header:x-amz-server-side-encryption-context"`

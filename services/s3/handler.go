@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -11,13 +12,6 @@ import (
 
 	"aws-in-a-box/awserrors"
 )
-
-func writeXML(w io.Writer, output any) {
-	err := xml.NewEncoder(w).Encode(output)
-	if err != nil {
-		panic(err)
-	}
-}
 
 func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 	return func(w http.ResponseWriter, r *http.Request) bool {
@@ -78,34 +72,9 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 			}
 			switch r.Method {
 			case http.MethodGet:
-				object, err := s3.GetObject(parts[0], parts[1])
-				if err != nil {
-					w.WriteHeader(err.Code)
-					w.Write([]byte(err.Body.Message))
-				} else {
-					w.Header().Set("Content-Type", object.ContentType)
-					w.Header().Set("x-amz-server-side-encryption", object.ServerSideEncryption)
-					w.Header().Set("x-amz-server-side-encryption-customer-key", object.SSECustomerKey)
-					w.Header().Set("x-amz-server-side-encryption-customer-algorithm", object.SSECustomerAlgorithm)
-					w.Header().Set("x-amz-server-side-encryption-aws-kms-key-id", object.SSEKMSKeyId)
-					w.Header().Set("Content-Length", strconv.Itoa(len(object.Data)))
-					w.Header().Set("Accept-Ranges", "bytes")
-					w.WriteHeader(http.StatusOK)
-					w.Write(object.Data)
-				}
+				handle(w, r, s3.GetObject)
 			case http.MethodHead:
-				object, err := s3.GetObject(parts[0], parts[1])
-				if err != nil {
-					w.WriteHeader(err.Code)
-					w.Write([]byte(err.Body.Message))
-				} else {
-					w.Header().Set("Content-Type", object.ContentType)
-					w.Header().Set("x-amz-server-side-encryption", object.ServerSideEncryption)
-					w.Header().Set("x-amz-server-side-encryption-customer-algorithm", object.SSECustomerAlgorithm)
-					w.Header().Set("x-amz-server-side-encryption-aws-kms-key-id", object.SSEKMSKeyId)
-					w.Header().Set("Accept-Ranges", "bytes")
-					w.WriteHeader(http.StatusOK)
-				}
+				handle(w, r, s3.HeadObject)
 			case http.MethodPut:
 				if r.Header.Get("x-amz-copy-source") != "" {
 					handle(w, r, s3.CopyObject)
@@ -189,6 +158,7 @@ func unmarshal(r *http.Request, target any) error {
 }
 
 func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
+	var body io.Reader
 	if awserr != nil {
 		fmt.Println("ERRR", awserr)
 		w.WriteHeader(awserr.Code)
@@ -198,7 +168,9 @@ func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
 		ty := v.Type()
 		for i := 0; i < ty.NumField(); i++ {
 			tag := ty.Field(i).Tag.Get("s3")
-			if h, ok := strings.CutPrefix(tag, "header:"); ok {
+			if tag == "body" {
+				body = bytes.NewReader(v.Field(i).Bytes())
+			} else if h, ok := strings.CutPrefix(tag, "header:"); ok {
 				w.Header().Set(h, v.Field(i).String())
 			}
 		}
@@ -209,8 +181,16 @@ func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
 			w.WriteHeader(http.StatusOK)
 		}
 
-		if _, ok := ty.FieldByName("XMLName"); ok {
-			writeXML(w, output)
+		if body != nil {
+			_, err := io.Copy(w, body)
+			if err != nil {
+				panic(err)
+			}
+		} else if _, ok := ty.FieldByName("XMLName"); ok {
+			err := xml.NewEncoder(w).Encode(output)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 }

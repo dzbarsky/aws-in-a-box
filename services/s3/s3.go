@@ -117,21 +117,42 @@ func (s *S3) DeleteBucket(input DeleteBucketInput) (*Response204, *awserrors.Err
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html
-func (s *S3) GetObject(bucket string, key string) (*Object, *awserrors.Error) {
+func (s *S3) GetObject(input GetObjectInput) (*GetObjectOutput, *awserrors.Error) {
+	return s.getObject(input, true)
+}
+
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
+func (s *S3) HeadObject(input GetObjectInput) (*GetObjectOutput, *awserrors.Error) {
+	return s.getObject(input, false)
+}
+
+func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput, *awserrors.Error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	b, ok := s.buckets[bucket]
+	b, ok := s.buckets[input.Bucket]
 	if !ok {
 		return nil, NotFound()
 	}
 
-	object, ok := b.objects[key]
+	object, ok := b.objects[input.Key]
 	if !ok {
 		return nil, NotFound()
 	}
 
-	return object, nil
+	output := &GetObjectOutput{
+		ContentLength:        strconv.Itoa(len(object.Data)),
+		ETag:                 hex.EncodeToString(object.MD5[:]),
+		ContentType:          object.ContentType,
+		ServerSideEncryption: object.ServerSideEncryption,
+		SSECustomerAlgorithm: object.SSECustomerAlgorithm,
+		SSECustomerKey:       object.SSECustomerKey,
+		SSEKMSKeyId:          object.SSEKMSKeyId,
+	}
+	if includeBody {
+		output.Body = object.Data
+	}
+	return output, nil
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
@@ -158,7 +179,7 @@ func (s *S3) PutObject(input PutObjectInput) (*PutObjectOutput, *awserrors.Error
 	b.objects[input.Key] = object
 
 	return &PutObjectOutput{
-		Etag:                    hex.EncodeToString(object.MD5[:]),
+		ETag:                    hex.EncodeToString(object.MD5[:]),
 		SSECustomerAlgorithm:    input.SSECustomerAlgorithm,
 		SSEKMSKeyId:             input.SSEKMSKeyId,
 		SSEKMSEncryptionContext: input.SSEKMSEncryptionContext,

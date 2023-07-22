@@ -315,16 +315,16 @@ func (s *S3) DeleteObject(input DeleteObjectInput) (*DeleteObjectOutput, *awserr
 
 	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NotFound()
 	}
 
 	_, ok = b.objects[input.Key]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no item")
+		return nil, NotFound()
 	}
 
 	delete(b.objects, input.Key)
-	return nil, nil
+	return &DeleteObjectOutput{}, nil
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html

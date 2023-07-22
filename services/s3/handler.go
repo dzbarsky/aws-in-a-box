@@ -37,6 +37,25 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 				handle(w, r, s3.DeleteBucket)
 			case http.MethodHead:
 				handle(w, r, s3.HeadBucket)
+			// https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPOST.html
+			case http.MethodPost:
+				err := r.ParseMultipartForm(10 * 1024 * 1024)
+				if err != nil {
+					panic(err)
+				}
+				f, err := r.MultipartForm.File["file"][0].Open()
+				if err != nil {
+					panic(err)
+				}
+				input := PutObjectInput{
+					Bucket:               parts[0],
+					Key:                  r.Form.Get("key"),
+					ServerSideEncryption: r.Form.Get("x-amz-server-side-encryption"),
+					ContentType:          r.Form.Get("Content-Type"),
+					Data:                 f,
+				}
+				output, awserr := s3.PutObject(input)
+				marshal(w, output, awserr)
 			}
 		}
 		if len(parts) == 2 {

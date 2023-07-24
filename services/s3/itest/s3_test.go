@@ -132,6 +132,46 @@ func TestMultipartUpload(t *testing.T) {
 	if *object.SSEKMSKeyId != kmsKey {
 		t.Fatal("missing KMS key header")
 	}
+
+	partsOutput, err := client.ListParts(ctx, &s3.ListPartsInput{
+		Bucket:   &bucket,
+		Key:      &key,
+		UploadId: id,
+		MaxParts: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(partsOutput.Parts, []types.Part{{
+		ETag:       parts[0].ETag,
+		Size:       5,
+		PartNumber: 0,
+	}}) {
+		t.Fatal("wrong parts", partsOutput.Parts)
+	}
+	if !partsOutput.IsTruncated {
+		t.Fatal("not truncated")
+	}
+	partsOutput, err = client.ListParts(ctx, &s3.ListPartsInput{
+		Bucket:           &bucket,
+		Key:              &key,
+		UploadId:         id,
+		MaxParts:         1,
+		PartNumberMarker: partsOutput.NextPartNumberMarker,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if partsOutput.IsTruncated {
+		t.Fatal("truncated")
+	}
+	if !reflect.DeepEqual(partsOutput.Parts, []types.Part{{
+		ETag:       parts[1].ETag,
+		Size:       6,
+		PartNumber: 1,
+	}}) {
+		t.Fatal("wrong parts", partsOutput.Parts)
+	}
 }
 
 func TestObjectTagging(t *testing.T) {

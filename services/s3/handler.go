@@ -88,8 +88,6 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 				return true
 			} else if r.URL.Query().Has("uploads") {
 				switch r.Method {
-				case http.MethodGet:
-					panic("Unhandled GetMultipartUploads")
 				case http.MethodPost:
 					handle(w, r, logger.With("method", "CreateMultipartUpload"), s3.CreateMultipartUpload)
 				default:
@@ -104,6 +102,8 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 					handle(w, r, logger.With("method", "CompleteMultipartUpload"), s3.CompleteMultipartUpload)
 				case http.MethodDelete:
 					handle(w, r, logger.With("method", "AbortMultipartUpload"), s3.AbortMultipartUpload)
+				case http.MethodGet:
+					handle(w, r, logger.With("method", "ListParts"), s3.ListParts)
 				default:
 					panic("Unhandled method")
 				}
@@ -171,28 +171,46 @@ func unmarshal(r *http.Request, target any) error {
 			continue
 		}
 
-		var value any
+		f := v.Field(i)
 		if tag == "bucket" {
-			value = parts[0]
+			f.Set(reflect.ValueOf(parts[0]))
 		} else if tag == "key" {
-			value = parts[1]
+			f.Set(reflect.ValueOf(parts[1]))
 		} else if tag == "body" {
-			value = r.Body
+			f.Set(reflect.ValueOf(r.Body))
 		} else if q, ok := strings.CutPrefix(tag, "query:"); ok {
 			v := r.URL.Query().Get(q)
-			if field.Type.Kind() == reflect.Int {
-				var err error
-				value, err = strconv.Atoi(v)
+
+			isPointer := false
+			kind := field.Type.Kind()
+			if kind == reflect.Pointer {
+				if v == "" {
+					continue
+				}
+				isPointer = true
+				kind = field.Type.Elem().Kind()
+			}
+
+			if kind == reflect.Int {
+				ival, err := strconv.Atoi(v)
 				if err != nil {
 					panic(err)
 				}
+				if isPointer {
+					f.Set(reflect.ValueOf(&ival))
+				} else {
+					f.Set(reflect.ValueOf(ival))
+				}
 			} else {
-				value = v
+				if isPointer {
+					f.Set(reflect.ValueOf(&v))
+				} else {
+					f.Set(reflect.ValueOf(v))
+				}
 			}
 		} else if h, ok := strings.CutPrefix(tag, "header:"); ok {
-			value = r.Header.Get(h)
+			f.Set(reflect.ValueOf(r.Header.Get(h)))
 		}
-		v.Field(i).Set(reflect.ValueOf(value))
 	}
 	return nil
 }

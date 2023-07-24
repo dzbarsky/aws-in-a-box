@@ -44,7 +44,16 @@ type Bucket struct {
 	TagSet  TagSet
 }
 
+type UploadStatus int
+
+const (
+	UploadStatusInProgress UploadStatus = iota
+	UploadStatusCompleted
+	UploadStatusAborted
+)
+
 type multipartUpload struct {
+	Status UploadStatus
 	Bucket string
 	Key    string
 	Parts  map[int]Part
@@ -53,8 +62,9 @@ type multipartUpload struct {
 }
 
 type Part struct {
-	MD5           []byte
-	ContentLength int64
+	Number int
+	MD5    []byte
+	Size   int64
 }
 
 type S3 struct {
@@ -467,6 +477,7 @@ func (s *S3) CreateMultipartUpload(input CreateMultipartUploadInput) (*CreateMul
 	uploadId := base64.RawURLEncoding.EncodeToString(uuid.Must(uuid.NewV4()).Bytes())
 
 	s.multipartUploads[uploadId] = &multipartUpload{
+		Status: UploadStatusInProgress,
 		Bucket: input.Bucket,
 		Key:    input.Key,
 		Parts:  make(map[int]Part),
@@ -506,14 +517,74 @@ func (s *S3) UploadPart(input UploadPartInput) (*UploadPartOutput, *awserrors.Er
 	}
 
 	upload.Parts[input.PartNumber] = Part{
-		MD5:           MD5,
-		ContentLength: contentLength,
+		Number: input.PartNumber,
+		MD5:    MD5,
+		Size:   contentLength,
 	}
 	return &UploadPartOutput{
 		ETag:                 hex.EncodeToString(MD5),
 		ServerSideEncryption: upload.Object.ServerSideEncryption,
 		SSEKMSKeyId:          upload.Object.SSEKMSKeyId,
 	}, nil
+}
+
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListParts.html
+func (s *S3) ListParts(input ListPartsInput) (*ListPartsOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, ok := s.buckets[input.Bucket]
+	if !ok {
+		return nil, awserrors.XXX_TODO("no bucket")
+	}
+
+	upload, ok := s.multipartUploads[input.UploadId]
+	if !ok {
+		return nil, awserrors.XXX_TODO("no upload")
+	}
+
+	maxParts := 1000
+	if input.MaxParts != nil {
+		maxParts = *input.MaxParts
+	}
+
+	var parts []Part
+	for _, part := range upload.Parts {
+		parts = append(parts, part)
+	}
+	slices.SortFunc(parts, func(a, b Part) bool {
+		return a.Number < b.Number
+	})
+
+	startIndex := 0
+	if input.PartNumberMarker != nil {
+		startIndex = slices.IndexFunc(parts, func(p Part) bool {
+			return p.Number == *input.PartNumberMarker
+		})
+	}
+
+	output := &ListPartsOutput{
+		Bucket:   input.Bucket,
+		Key:      input.Key,
+		UploadId: input.UploadId,
+		MaxParts: maxParts,
+	}
+
+	i := startIndex
+	for ; i < len(parts) && len(output.Part) < maxParts; i++ {
+		output.Part = append(output.Part, ListPartsOutputPart{
+			ETag:       hex.EncodeToString(parts[i].MD5),
+			PartNumber: parts[i].Number,
+			Size:       parts[i].Size,
+		})
+	}
+
+	output.PartNumberMarker = i
+	if i < len(parts) {
+		output.IsTruncated = true
+		output.NextPartNumberMarker = parts[i].Number
+	}
+	return output, nil
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html
@@ -524,6 +595,10 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 	upload, ok := s.multipartUploads[input.UploadId]
 	if !ok {
 		return nil, awserrors.XXX_TODO("no upload")
+	}
+
+	if upload.Status != UploadStatusInProgress {
+		return nil, awserrors.XXX_TODO("bad upload status")
 	}
 
 	if upload.Bucket != input.Bucket || upload.Key != input.Key {
@@ -549,14 +624,14 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 		}
 
 		combinedMD5s = append(combinedMD5s, part.MD5...)
-		object.Parts = append(object.Parts, Part{MD5: part.MD5, ContentLength: part.ContentLength})
-		totalContentLength += part.ContentLength
+		object.Parts = append(object.Parts, part)
+		totalContentLength += part.Size
 	}
 	object.ContentLength = totalContentLength
 	object.ETag = etag(combinedMD5s) + "-" + strconv.Itoa(len(input.Part))
 
 	s.buckets[input.Bucket].objects[input.Key] = &object
-	delete(s.multipartUploads, input.UploadId)
+	upload.Status = UploadStatusCompleted
 
 	return &CompleteMultipartUploadOutput{
 		Bucket:               input.Bucket,
@@ -573,7 +648,17 @@ func (s *S3) AbortMultipartUpload(input AbortMultipartUploadInput) (*Response204
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.multipartUploads, input.UploadId)
+	upload, ok := s.multipartUploads[input.UploadId]
+	if !ok {
+		return nil, awserrors.XXX_TODO("no upload")
+	}
+
+	if upload.Status == UploadStatusCompleted {
+		// TODO: check this behavior
+		return nil, awserrors.XXX_TODO("bad upload status")
+	}
+
+	upload.Status = UploadStatusCompleted
 	return response204, nil
 }
 

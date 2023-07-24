@@ -183,6 +183,36 @@ type UploadPartOutput struct {
 	SSEKMSKeyId          string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
 }
 
+type ListPartsInput struct {
+	Bucket               string `s3:"bucket"`
+	Key                  string `s3:"key"`
+	UploadId             string `s3:"query:uploadId"`
+	PartNumberMarker     *int   `s3:"query:part-number-marker"`
+	MaxParts             *int   `s3:"query:max-parts"`
+	SSECustomerAlgorithm string `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
+	SSECustomerKey       string `s3:"header:x-amz-server-side-encryption-customer-key"`
+	// TODO: md5 check
+}
+
+type ListPartsOutput struct {
+	XMLName              xml.Name `xml:"ListPartsResult"`
+	Bucket               string
+	Key                  string
+	UploadId             string
+	PartNumberMarker     int
+	NextPartNumberMarker int
+	MaxParts             int
+	IsTruncated          bool
+	Part                 []ListPartsOutputPart
+}
+
+type ListPartsOutputPart struct {
+	ETag string
+	//LastModified
+	PartNumber int
+	Size       int64
+}
+
 type AbortMultipartUploadInput struct {
 	UploadId string `s3:"query:uploadId"`
 	Bucket   string `s3:"bucket"`

@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"sync"
 
+	"golang.org/x/exp/slog"
+
 	"aws-in-a-box/arn"
 	"aws-in-a-box/awserrors"
 )
@@ -32,14 +34,20 @@ func (t *Table) toAPI() APITableDescription {
 }
 
 type DynamoDB struct {
+	logger       *slog.Logger
 	arnGenerator arn.Generator
 
 	mu           sync.Mutex
 	tablesByName map[string]*Table
 }
 
-func New(generator arn.Generator) *DynamoDB {
+func New(logger *slog.Logger, generator arn.Generator) *DynamoDB {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	d := &DynamoDB{
+		logger:       logger,
 		arnGenerator: generator,
 		tablesByName: make(map[string]*Table),
 	}
@@ -77,7 +85,6 @@ func (d *DynamoDB) CreateTable(input CreateTableInput) (*CreateTableOutput, *aws
 	}
 	d.tablesByName[input.TableName] = t
 
-	//fmt.Println("CreateTable", input)
 	return &CreateTableOutput{
 		TableDescription: t.toAPI(),
 	}, nil
@@ -103,9 +110,6 @@ func (d *DynamoDB) Scan(input ScanInput) (*ScanOutput, *awserrors.Error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	/*data, _ := json.MarshalIndent(input, "", "  ")
-	fmt.Println("Scan", string(data))*/
-
 	t, ok := d.tablesByName[input.TableName]
 	if !ok {
 		return nil, awserrors.InvalidArgumentException("Table does not exist")
@@ -127,9 +131,6 @@ func (d *DynamoDB) PutItem(input PutItemInput) (*PutItemOutput, *awserrors.Error
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	/*data, _ := json.MarshalIndent(input, "", "  ")
-	fmt.Println("PutItem", string(data))*/
-
 	t, ok := d.tablesByName[input.TableName]
 	if !ok {
 		return nil, awserrors.InvalidArgumentException("Table does not exist")
@@ -148,9 +149,6 @@ func (d *DynamoDB) PutItem(input PutItemInput) (*PutItemOutput, *awserrors.Error
 func (d *DynamoDB) UpdateItem(input UpdateItemInput) (*UpdateItemOutput, *awserrors.Error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-
-	/*data, _ := json.MarshalIndent(input, "", "  ")
-	fmt.Println("UpdateItem", string(data))*/
 
 	t, ok := d.tablesByName[input.TableName]
 	if !ok {

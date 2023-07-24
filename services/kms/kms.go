@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/gofrs/uuid/v5"
+	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/awserrors"
 	"aws-in-a-box/services/kms/key"
@@ -18,6 +19,7 @@ import (
 type KeyId = string
 
 type KMS struct {
+	logger       *slog.Logger
 	arnGenerator arn.Generator
 	persistDir   string
 
@@ -28,23 +30,33 @@ type KMS struct {
 	keys    map[KeyId]*key.Key
 }
 
-func New(arnGenerator arn.Generator, persistDir string) (*KMS, error) {
+type Options struct {
+	Logger       *slog.Logger
+	ArnGenerator arn.Generator
+	PersistDir   string
+}
+
+func New(options Options) (*KMS, error) {
+	if options.Logger == nil {
+		options.Logger = slog.Default()
+	}
+
 	keys := make(map[KeyId]*key.Key)
 
-	if persistDir != "" {
-		persistDir = filepath.Join(persistDir, "kms")
-		err := os.MkdirAll(persistDir, 0700)
+	if options.PersistDir != "" {
+		options.PersistDir = filepath.Join(options.PersistDir, "kms")
+		err := os.MkdirAll(options.PersistDir, 0700)
 		if err != nil {
 			return nil, err
 		}
 
-		files, err := os.ReadDir(persistDir)
+		files, err := os.ReadDir(options.PersistDir)
 		if err != nil {
 			return nil, err
 		}
 		for _, file := range files {
 			name := file.Name()
-			fullPath := filepath.Join(persistDir, name)
+			fullPath := filepath.Join(options.PersistDir, name)
 			if strings.HasSuffix(name, ".tmp") {
 				os.Remove(fullPath)
 			} else if strings.HasSuffix(name, ".json") {
@@ -58,8 +70,9 @@ func New(arnGenerator arn.Generator, persistDir string) (*KMS, error) {
 	}
 
 	return &KMS{
-		arnGenerator: arnGenerator,
-		persistDir:   persistDir,
+		logger:       options.Logger,
+		arnGenerator: options.ArnGenerator,
+		persistDir:   options.PersistDir,
 		aliases:      make(map[string]KeyId),
 		keys:         keys,
 	}, nil

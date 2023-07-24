@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/awserrors"
 )
@@ -88,22 +89,29 @@ func writeResponse(w http.ResponseWriter, output any, awserr *awserrors.Error, c
 type Registry = map[string]http.HandlerFunc
 
 func Register[Input any, Output any](
+	logger *slog.Logger,
 	registry map[string]http.HandlerFunc,
 	service string,
 	method string,
 	handler func(input Input) (*Output, *awserrors.Error),
 ) {
+	logger = logger.With("method", method)
 	registry[service+"."+method] = func(w http.ResponseWriter, r *http.Request) {
+		logger.Info("Handling request")
 
 		contentType := r.Header.Get("Content-Type")
 
 		var input Input
 		err := strictUnmarshal(r.Body, contentType, &input)
 		if err != nil {
+			logger.Error("Unmarshaling input", "err", err)
 			panic(fmt.Errorf("%s: %v", method, err))
 		}
+		logger.Debug("Parsed input", "input", input)
 
 		output, awserr := handler(input)
+		logger.Debug("Got output", "output", output, "error", awserr)
+
 		writeResponse(w, output, awserr, contentType)
 	}
 }
@@ -111,18 +119,22 @@ func Register[Input any, Output any](
 const binaryDataTypeString = 7
 
 func RegisterOutputStream[Input any, Output any](
+	logger *slog.Logger,
 	registry map[string]http.HandlerFunc,
 	service string,
 	method string,
 	handler func(input Input) (chan *Output, *awserrors.Error),
 ) {
+	logger = logger.With("method", method)
 	registry[service+"."+method] = func(w http.ResponseWriter, r *http.Request) {
+		logger.Info("Handling request")
 
 		contentType := r.Header.Get("Content-Type")
 
 		var input Input
 		err := strictUnmarshal(r.Body, contentType, &input)
 		if err != nil {
+			logger.Error("Unmarshaling input", "err", err)
 			panic(fmt.Errorf("%s: %v", method, err))
 		}
 

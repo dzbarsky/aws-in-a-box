@@ -2,12 +2,11 @@ package server
 
 import (
 	"bytes"
-	"fmt"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/gofrs/uuid/v5"
+	"golang.org/x/exp/slog"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -31,11 +30,11 @@ func NewWithHandlerChain(chain ...HandlerFunc) *http.Server {
 	}))
 }
 
-func HandlerFuncFromRegistry(registry map[string]http.HandlerFunc) HandlerFunc {
+func HandlerFuncFromRegistry(logger *slog.Logger, registry map[string]http.HandlerFunc) HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) bool {
 		buf, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Print("bodyErr ", err.Error())
+			logger.Error("Reading body", "err", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return true
 		}
@@ -51,7 +50,7 @@ func HandlerFuncFromRegistry(registry map[string]http.HandlerFunc) HandlerFunc {
 		w.Header().Add("x-amzn-RequestId", uuid.Must(uuid.NewV4()).String())
 		method, ok := registry[target]
 		if !ok {
-			fmt.Println("NOT FOUND, cannot serve request", r)
+			logger.Error("Method not found", "method", method)
 			w.WriteHeader(404)
 			return true
 		}

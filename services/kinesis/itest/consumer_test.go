@@ -6,11 +6,11 @@ import (
 	"net"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/server"
@@ -18,20 +18,22 @@ import (
 )
 
 func makeClientServerPair() (*kinesis.Client, *http.Server) {
-	impl := kinesisImpl.New(arn.Generator{
-		AwsAccountId: "123456789012",
-		Region:       "us-east-1",
-	}, time.Hour)
+	impl := kinesisImpl.New(kinesisImpl.Options{
+		ArnGenerator: arn.Generator{
+			AwsAccountId: "123456789012",
+			Region:       "us-east-1",
+		},
+	})
 
 	methodRegistry := make(map[string]http.HandlerFunc)
-	impl.RegisterHTTPHandlers(methodRegistry)
+	impl.RegisterHTTPHandlers(slog.Default(), methodRegistry)
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		panic(err)
 	}
 	srv := server.NewWithHandlerChain(
-		server.HandlerFuncFromRegistry(methodRegistry),
+		server.HandlerFuncFromRegistry(slog.Default(), methodRegistry),
 	)
 	go srv.Serve(listener)
 

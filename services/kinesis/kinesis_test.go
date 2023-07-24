@@ -3,7 +3,6 @@ package kinesis
 import (
 	"strconv"
 	"testing"
-	"time"
 
 	"golang.org/x/exp/slices"
 
@@ -18,7 +17,7 @@ var generator = arn.Generator{
 func newKinesisWithStream() (*Kinesis, string) {
 	streamName := "exampleStream"
 
-	k := New(generator, time.Hour)
+	k := New(Options{ArnGenerator: generator})
 	_, err := k.CreateStream(CreateStreamInput{
 		StreamName: streamName,
 		ShardCount: 1,
@@ -32,7 +31,7 @@ func newKinesisWithStream() (*Kinesis, string) {
 
 func TestStreamTags(t *testing.T) {
 	streamName := "stream"
-	k := New(generator, time.Hour)
+	k := New(Options{ArnGenerator: generator})
 	_, err := k.CreateStream(CreateStreamInput{
 		StreamName: streamName,
 		ShardCount: 2,
@@ -112,7 +111,7 @@ func TestStreamTags(t *testing.T) {
 
 func TestListShards(t *testing.T) {
 	streamName := "stream"
-	k := New(generator, time.Hour)
+	k := New(Options{ArnGenerator: generator})
 	_, err := k.CreateStream(CreateStreamInput{
 		StreamName: streamName,
 		ShardCount: 2,
@@ -152,7 +151,7 @@ func TestListShards(t *testing.T) {
 
 func TestGetShardIterator(t *testing.T) {
 	streamName := "stream"
-	k := New(generator, time.Hour)
+	k := New(Options{ArnGenerator: generator})
 	_, err := k.CreateStream(CreateStreamInput{
 		StreamName: streamName,
 		ShardCount: 2,

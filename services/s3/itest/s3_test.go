@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/server"
 	s3Impl "aws-in-a-box/services/s3"
@@ -25,11 +26,13 @@ func makeClientServerPair() (*s3.Client, *http.Server) {
 	if err != nil {
 		panic(err)
 	}
-	impl, err := s3Impl.New(listener.Addr().String(), "")
+	impl, err := s3Impl.New(s3Impl.Options{
+		Addr: listener.Addr().String(),
+	})
 	if err != nil {
 		panic(err)
 	}
-	srv := server.NewWithHandlerChain(s3Impl.NewHandler(impl))
+	srv := server.NewWithHandlerChain(s3Impl.NewHandler(slog.Default(), impl))
 	go srv.Serve(listener)
 
 	client := s3.New(s3.Options{

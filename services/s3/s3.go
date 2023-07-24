@@ -16,6 +16,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"golang.org/x/exp/slices"
+	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/atomicfile"
 	"aws-in-a-box/awserrors"
@@ -57,6 +58,8 @@ type Part struct {
 }
 
 type S3 struct {
+	logger *slog.Logger
+
 	// We need the address to generate location URLs.
 	addr       string
 	persistDir string
@@ -66,24 +69,35 @@ type S3 struct {
 	multipartUploads map[string]*multipartUpload
 }
 
-func New(addr string, persistDir string) (*S3, error) {
-	if persistDir == "" {
+type Options struct {
+	Logger     *slog.Logger
+	Addr       string
+	PersistDir string
+}
+
+func New(options Options) (*S3, error) {
+	if options.Logger == nil {
+		options.Logger = slog.Default()
+	}
+
+	if options.PersistDir == "" {
 		var err error
-		persistDir, err = os.MkdirTemp("", "aws-in-a-box-s3")
+		options.PersistDir, err = os.MkdirTemp("", "aws-in-a-box-s3")
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		persistDir = filepath.Join(persistDir, "s3", "cas")
-		err := os.MkdirAll(persistDir, 0700)
+		options.PersistDir = filepath.Join(options.PersistDir, "s3", "cas")
+		err := os.MkdirAll(options.PersistDir, 0700)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return &S3{
-		addr:             addr,
-		persistDir:       persistDir,
+		logger:           options.Logger,
+		addr:             options.Addr,
+		persistDir:       options.PersistDir,
 		buckets:          make(map[string]*Bucket),
 		multipartUploads: make(map[string]*multipartUpload),
 	}, nil

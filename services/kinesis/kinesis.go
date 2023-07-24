@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/exp/slog"
+
 	"aws-in-a-box/arn"
 	"aws-in-a-box/awserrors"
 )
@@ -62,6 +64,7 @@ type Stream struct {
 }
 
 type Kinesis struct {
+	logger           *slog.Logger
 	arnGenerator     arn.Generator
 	defaultRetention time.Duration
 
@@ -71,19 +74,32 @@ type Kinesis struct {
 	highestTimestamp int64
 }
 
-func New(generator arn.Generator, defaultRetention time.Duration) *Kinesis {
+type Options struct {
+	Logger           *slog.Logger
+	ArnGenerator     arn.Generator
+	DefaultRetention time.Duration
+}
+
+func New(options Options) *Kinesis {
+	if options.Logger == nil {
+		options.Logger = slog.Default()
+	}
+
 	k := &Kinesis{
-		arnGenerator:     generator,
-		defaultRetention: defaultRetention,
+		logger:           options.Logger,
+		arnGenerator:     options.ArnGenerator,
+		defaultRetention: options.DefaultRetention,
 		streams:          map[string]*Stream{},
 		consumersByARN:   map[string]*Consumer{},
 	}
-	go func() {
-		for {
-			time.Sleep(k.defaultRetention / 2)
-			k.enforceDuration()
-		}
-	}()
+	if options.DefaultRetention > 0 {
+		go func() {
+			for {
+				time.Sleep(options.DefaultRetention / 2)
+				k.enforceDuration()
+			}
+		}()
+	}
 	return k
 }
 
@@ -128,6 +144,7 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (*CreateStreamOutput, *a
 
 	stream := &Stream{
 		Name:              input.StreamName,
+		Retention:         k.defaultRetention,
 		CreationTimestamp: time.Now().UnixNano(),
 		consumersByName:   make(map[string]*Consumer),
 		Tags:              make(map[string]string),
@@ -198,8 +215,6 @@ func (k *Kinesis) PutRecord(input PutRecordInput) (*PutRecordOutput, *awserrors.
 		_, streamName = arn.ExtractId(input.StreamARN)
 	}
 
-	//fmt.Println("PutRecord", streamName)
-
 	var hashKey big.Int
 	if input.ExplicitHashKey != "" {
 		hashKey.SetString(input.ExplicitHashKey, 10)
@@ -261,8 +276,6 @@ func (k *Kinesis) lockedGetShard(streamName, shardId string) (*Shard, *awserrors
 
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_GetRecords.html
 func (k *Kinesis) GetRecords(input GetRecordsInput) (*GetRecordsOutput, *awserrors.Error) {
-	//fmt.Println("GetRecords", input.ShardIterator)
-
 	streamName, shardId, start, err := decodeShardIterator(input.ShardIterator)
 	if err != nil {
 		return nil, XXXTodoException(err.Error())
@@ -287,7 +300,6 @@ func (k *Kinesis) GetRecords(input GetRecordsInput) (*GetRecordsOutput, *awserro
 	}
 
 	output.NextShardIterator = encodeShardIterator(streamName, shardId, currIndex)
-	//fmt.Println("READ RECORDS", input.ShardIterator, output.NextShardIterator)
 	return output, nil
 }
 
@@ -297,8 +309,6 @@ func (k *Kinesis) GetShardIterator(input GetShardIteratorInput) (*GetShardIterat
 	if streamName == "" {
 		_, streamName = arn.ExtractId(input.StreamARN)
 	}
-
-	//fmt.Println("GetShardIterator", streamName, input)
 
 	output := &GetShardIteratorOutput{}
 	switch input.ShardIteratorType {
@@ -336,8 +346,6 @@ func (k *Kinesis) ListShards(input ListShardsInput) (*ListShardsOutput, *awserro
 	if streamName == "" {
 		_, streamName = arn.ExtractId(input.StreamARN)
 	}
-
-	//fmt.Println("ListShards", streamName)
 
 	k.mu.Lock()
 	defer k.mu.Unlock()

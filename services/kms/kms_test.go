@@ -10,10 +10,11 @@ import (
 )
 
 func newKMSWithKeyReturningARN() (*KMS, string, string) {
-	k, err := New(arn.Generator{
-		AwsAccountId: "12345",
-		Region:       "us-east-1",
-	}, "")
+	k, err := New(Options{
+		ArnGenerator: arn.Generator{
+			AwsAccountId: "12345",
+			Region:       "us-east-1",
+		}})
 	if err != nil {
 		panic(err)
 	}

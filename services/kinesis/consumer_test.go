@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"aws-in-a-box/awserrors"
 )
@@ -22,7 +21,6 @@ func TestRegisterStreamConsumer(t *testing.T) {
 		t.Fatal(err)
 	}
 	consumerName := "exampleConsumer"
-	//consumerName2 := "consumer2"
 
 	output1, err := k.RegisterStreamConsumer(RegisterStreamConsumerInput{
 		ConsumerName: consumerName,
@@ -138,7 +136,7 @@ func TestDeregisterStreamConsumer(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			k := New(generator, time.Hour)
+			k := New(Options{ArnGenerator: generator})
 			arns := []string{""}
 			for _, streamName := range []string{"stream1", "stream2"} {
 				_, err := k.CreateStream(CreateStreamInput{

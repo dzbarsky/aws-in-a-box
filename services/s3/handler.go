@@ -2,20 +2,20 @@ package s3
 
 import (
 	"encoding/xml"
-	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
 
+	"golang.org/x/exp/slog"
+
 	"aws-in-a-box/awserrors"
 )
 
-func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
+func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 	return func(w http.ResponseWriter, r *http.Request) bool {
-		log.Print("Handling S3 request ", r.Method, " ", r.URL.String())
+		logger.Info("Handling S3 request", "method", r.Method, "url", r.URL)
 		path := strings.Trim(r.URL.Path, "/")
 		parts := strings.SplitN(path, "/", 2)
 
@@ -23,11 +23,11 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 			if r.URL.Query().Has("tagging") {
 				switch r.Method {
 				case http.MethodGet:
-					handle(w, r, s3.GetBucketTagging)
+					handle(w, r, logger.With("method", "GetBucketTagging"), s3.GetBucketTagging)
 				case http.MethodPut:
-					handle(w, r, s3.PutBucketTagging)
+					handle(w, r, logger.With("method", "PutBucketTagging"), s3.PutBucketTagging)
 				case http.MethodDelete:
-					handle(w, r, s3.DeleteBucketTagging)
+					handle(w, r, logger.With("method", "DeleteBucketTagging"), s3.DeleteBucketTagging)
 				default:
 					panic("Unhandled method")
 				}
@@ -35,7 +35,7 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 			} else if r.URL.Query().Has("delete") {
 				switch r.Method {
 				case http.MethodPost:
-					handle(w, r, s3.DeleteObjects)
+					handle(w, r, logger.With("method", "DeleteObjects"), s3.DeleteObjects)
 				default:
 					panic("Unhandled method")
 				}
@@ -43,11 +43,11 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 			}
 			switch r.Method {
 			case http.MethodPut:
-				handle(w, r, s3.CreateBucket)
+				handle(w, r, logger.With("method", "CreateBucket"), s3.CreateBucket)
 			case http.MethodDelete:
-				handle(w, r, s3.DeleteBucket)
+				handle(w, r, logger.With("method", "DeleteBucket"), s3.DeleteBucket)
 			case http.MethodHead:
-				handle(w, r, s3.HeadBucket)
+				handle(w, r, logger.With("method", "HeadBucket"), s3.HeadBucket)
 			// https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPOST.html
 			case http.MethodPost:
 				err := r.ParseMultipartForm(10 * 1024 * 1024)
@@ -65,7 +65,9 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 					ContentType:          r.Form.Get("Content-Type"),
 					Data:                 f,
 				}
+				logger.Debug("Parsed input", "method", "PutObject", "input", input)
 				output, awserr := s3.PutObject(input)
+				logger.Debug("Got output", "method", "PutObject", "output", output, "error", awserr)
 				marshal(w, output, awserr)
 			default:
 				panic("Unhandled method")
@@ -75,11 +77,11 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 			if r.URL.Query().Has("tagging") {
 				switch r.Method {
 				case http.MethodGet:
-					handle(w, r, s3.GetObjectTagging)
+					handle(w, r, logger.With("method", "GetObjectTagging"), s3.GetObjectTagging)
 				case http.MethodPut:
-					handle(w, r, s3.PutObjectTagging)
+					handle(w, r, logger.With("method", "PutObjectTagging"), s3.PutObjectTagging)
 				case http.MethodDelete:
-					handle(w, r, s3.DeleteObjectTagging)
+					handle(w, r, logger.With("method", "DeleteObjectTagging"), s3.DeleteObjectTagging)
 				default:
 					panic("Unhandled method")
 				}
@@ -89,7 +91,7 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 				case http.MethodGet:
 					panic("Unhandled GetMultipartUploads")
 				case http.MethodPost:
-					handle(w, r, s3.CreateMultipartUpload)
+					handle(w, r, logger.With("method", "CreateMultipartUpload"), s3.CreateMultipartUpload)
 				default:
 					panic("Unhandled method")
 				}
@@ -97,11 +99,11 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 			} else if r.URL.Query().Has("uploadId") {
 				switch r.Method {
 				case http.MethodPut:
-					handle(w, r, s3.UploadPart)
+					handle(w, r, logger.With("method", "UploadPart"), s3.UploadPart)
 				case http.MethodPost:
-					handle(w, r, s3.CompleteMultipartUpload)
+					handle(w, r, logger.With("method", "CompleteMultipartUpload"), s3.CompleteMultipartUpload)
 				case http.MethodDelete:
-					handle(w, r, s3.AbortMultipartUpload)
+					handle(w, r, logger.With("method", "AbortMultipartUpload"), s3.AbortMultipartUpload)
 				default:
 					panic("Unhandled method")
 				}
@@ -109,17 +111,17 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 			}
 			switch r.Method {
 			case http.MethodGet:
-				handle(w, r, s3.GetObject)
+				handle(w, r, logger.With("method", "GetObject"), s3.GetObject)
 			case http.MethodHead:
-				handle(w, r, s3.HeadObject)
+				handle(w, r, logger.With("method", "HeadObject"), s3.HeadObject)
 			case http.MethodPut:
 				if r.Header.Get("x-amz-copy-source") != "" {
-					handle(w, r, s3.CopyObject)
+					handle(w, r, logger.With("method", "CopyObject"), s3.CopyObject)
 				} else {
-					handle(w, r, s3.PutObject)
+					handle(w, r, logger.With("method", "PutObject"), s3.PutObject)
 				}
 			case http.MethodDelete:
-				handle(w, r, s3.DeleteObject)
+				handle(w, r, logger.With("method", "DeleteObject"), s3.DeleteObject)
 			default:
 				panic("Unhandled method")
 			}
@@ -131,14 +133,20 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 func handle[Input any, Output any](
 	w http.ResponseWriter,
 	r *http.Request,
+	logger *slog.Logger,
 	handler func(input Input) (*Output, *awserrors.Error),
 ) {
 	var input Input
 	err := unmarshal(r, &input)
 	if err != nil {
+		logger.Error("Unmarshaling input", "err", err)
 		panic(err)
 	}
+	logger.Debug("Parsed input", "input", input)
+
 	output, awserr := handler(input)
+	logger.Debug("Got output", "output", output, "error", awserr)
+
 	marshal(w, output, awserr)
 }
 
@@ -192,7 +200,6 @@ func unmarshal(r *http.Request, target any) error {
 func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
 	var body io.Reader
 	if awserr != nil {
-		fmt.Println("ERRR", awserr)
 		w.WriteHeader(awserr.Code)
 		w.Write([]byte(awserr.Body.Message))
 	} else {

@@ -3,8 +3,12 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
+	"runtime/debug"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/http"
@@ -15,9 +19,30 @@ import (
 	"aws-in-a-box/services/s3"
 )
 
+func versionString() string {
+	buildinfo, ok := debug.ReadBuildInfo()
+	if !ok {
+		log.Fatal("Could not read build info")
+	}
+	revision := "unknown"
+	dirty := false
+	for _, s := range buildinfo.Settings {
+		if s.Key == "vcs.modified" {
+			dirty = s.Value == "true"
+		} else if s.Key == "vcs.revision" {
+			revision = s.Value
+		}
+	}
+	if dirty {
+		revision += "(dirty)"
+	}
+	return revision
+}
+
 func main() {
 	addr := flag.String("addr", "localhost:4569", "Address to run on")
 	persistDir := flag.String("persistDir", "", "Directory to persist data to. If empty, data is not persisted.")
+	logLevel := flag.String("logLevel", "debug", "debug/info/warn/error")
 
 	enableKinesis := flag.Bool("enableKinesis", true, "Enable Kinesis service")
 	kinesisInitialStreams := flag.String("kinesisInitialStreams", "",
@@ -36,6 +61,25 @@ func main() {
 
 	flag.Parse()
 
+	var level slog.Level
+	switch *logLevel {
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		panic("Invalid log level")
+	}
+
+	textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: level,
+	})
+	logger := slog.New(textHandler).With("version", versionString())
+
 	methodRegistry := make(http.Registry)
 
 	arnGenerator := arn.Generator{
@@ -45,36 +89,52 @@ func main() {
 	}
 
 	if *enableKinesis {
-		k := kinesis.New(arnGenerator, *kinesisDefaultDuration)
+		logger := logger.With("service", "kinesis")
+		k := kinesis.New(kinesis.Options{
+			Logger:           logger,
+			ArnGenerator:     arnGenerator,
+			DefaultRetention: *kinesisDefaultDuration,
+		})
 		for _, name := range strings.Split(*kinesisInitialStreams, ",") {
 			k.CreateStream(kinesis.CreateStreamInput{
 				StreamName: name,
 				ShardCount: *kinesisInitialShardsPerStream,
 			})
 		}
-		k.RegisterHTTPHandlers(methodRegistry)
-		//log.Println("Enabled Kinesis")
+		k.RegisterHTTPHandlers(logger, methodRegistry)
+		logger.Info("Enabled Kinesis")
 	}
 
 	if *enableKMS {
-		k, err := kms.New(arnGenerator, *persistDir)
+		logger := logger.With("service", "kms")
+		k, err := kms.New(kms.Options{
+			Logger:       logger,
+			ArnGenerator: arnGenerator,
+			PersistDir:   *persistDir,
+		})
 		if err != nil {
 			log.Fatal(err)
 		}
-		k.RegisterHTTPHandlers(methodRegistry)
-		//log.Println("Enabled KMS")
+		k.RegisterHTTPHandlers(logger, methodRegistry)
+		logger.Info("Enabled KMS")
 	}
 
 	if *enableDynamoDB {
-		d := dynamodb.New(arnGenerator)
-		d.RegisterHTTPHandlers(methodRegistry)
-		//log.Println("Enabled DynamoDB (EXPERIMENTAL!!!)")
+		logger := logger.With("service", "dynamodb")
+		d := dynamodb.New(logger, arnGenerator)
+		d.RegisterHTTPHandlers(logger, methodRegistry)
+		logger.Info("Enabled DynamoDB (EXPERIMENTAL!!!)")
 	}
 
-	handlerChain := []server.HandlerFunc{server.HandlerFuncFromRegistry(methodRegistry)}
+	handlerChain := []server.HandlerFunc{server.HandlerFuncFromRegistry(logger, methodRegistry)}
 
 	if *enableS3 {
-		s, err := s3.New(*addr, *persistDir)
+		logger := logger.With("service", "s3")
+		s, err := s3.New(s3.Options{
+			Logger:     logger,
+			Addr:       *addr,
+			PersistDir: *persistDir,
+		})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -83,7 +143,7 @@ func main() {
 				Bucket: name,
 			})
 		}
-		handlerChain = append(handlerChain, s3.NewHandler(s))
+		handlerChain = append(handlerChain, s3.NewHandler(logger, s))
 	}
 
 	srv := server.NewWithHandlerChain(handlerChain...)

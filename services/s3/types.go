@@ -219,3 +219,33 @@ type DeleteObjectInput struct {
 }
 
 type DeleteObjectOutput struct{}
+
+type DeleteObjectsInput struct {
+	XMLName xml.Name `xml:"Delete"`
+	Bucket  string   `s3:"bucket"`
+	Object  []struct {
+		Key       string
+		VersionId string
+	}
+	Quiet bool
+}
+
+type DeleteObjectsOutput struct {
+	XMLName xml.Name `xml:"DeleteResult"`
+	Deleted []DeleteObjectsDeleted
+	Error   []DeleteObjectsError
+}
+
+type DeleteObjectsDeleted struct {
+	//DeleteMarker          bool
+	//DeleteMarkerVersionId string
+	Key string
+	//VersionId             string
+}
+
+type DeleteObjectsError struct {
+	Code    string
+	Key     string
+	Message string
+	//VersionId string
+}

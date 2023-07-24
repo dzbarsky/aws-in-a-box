@@ -327,6 +327,42 @@ func (s *S3) DeleteObject(input DeleteObjectInput) (*DeleteObjectOutput, *awserr
 	return &DeleteObjectOutput{}, nil
 }
 
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
+func (s *S3) DeleteObjects(input DeleteObjectsInput) (*DeleteObjectsOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	b, ok := s.buckets[input.Bucket]
+	if !ok {
+		// Ensure the rest of the lookups will be misses
+		b = &Bucket{
+			objects: map[string]*Object{},
+		}
+	}
+
+	output := &DeleteObjectsOutput{}
+	for _, object := range input.Object {
+		_, ok = b.objects[object.Key]
+		if !ok {
+			err := NotFound().Body
+			output.Error = append(output.Error, DeleteObjectsError{
+				Code:    err.Type,
+				Key:     object.Key,
+				Message: err.Message,
+			})
+			continue
+		}
+
+		delete(b.objects, object.Key)
+		if !input.Quiet {
+			output.Deleted = append(output.Deleted, DeleteObjectsDeleted{
+				Key: object.Key,
+			})
+		}
+	}
+	return output, nil
+}
+
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html
 func (s *S3) GetObjectTagging(input GetObjectTaggingInput) (*GetObjectTaggingOutput, *awserrors.Error) {
 	s.mu.Lock()

@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -14,7 +15,7 @@ import (
 
 func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 	return func(w http.ResponseWriter, r *http.Request) bool {
-		//log.Print("Handling S3 request ", r.Method, " ", r.URL.String())
+		log.Print("Handling S3 request ", r.Method, " ", r.URL.String())
 		path := strings.Trim(r.URL.Path, "/")
 		parts := strings.SplitN(path, "/", 2)
 
@@ -27,6 +28,16 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 					handle(w, r, s3.PutBucketTagging)
 				case http.MethodDelete:
 					handle(w, r, s3.DeleteBucketTagging)
+				default:
+					panic("Unhandled method")
+				}
+				return true
+			} else if r.URL.Query().Has("delete") {
+				switch r.Method {
+				case http.MethodPost:
+					handle(w, r, s3.DeleteObjects)
+				default:
+					panic("Unhandled method")
 				}
 				return true
 			}
@@ -56,6 +67,8 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 				}
 				output, awserr := s3.PutObject(input)
 				marshal(w, output, awserr)
+			default:
+				panic("Unhandled method")
 			}
 		}
 		if len(parts) == 2 {
@@ -67,6 +80,8 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 					handle(w, r, s3.PutObjectTagging)
 				case http.MethodDelete:
 					handle(w, r, s3.DeleteObjectTagging)
+				default:
+					panic("Unhandled method")
 				}
 				return true
 			} else if r.URL.Query().Has("uploads") {
@@ -75,6 +90,8 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 					panic("Unhandled GetMultipartUploads")
 				case http.MethodPost:
 					handle(w, r, s3.CreateMultipartUpload)
+				default:
+					panic("Unhandled method")
 				}
 				return true
 			} else if r.URL.Query().Has("uploadId") {
@@ -85,6 +102,8 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 					handle(w, r, s3.CompleteMultipartUpload)
 				case http.MethodDelete:
 					handle(w, r, s3.AbortMultipartUpload)
+				default:
+					panic("Unhandled method")
 				}
 				return true
 			}
@@ -102,7 +121,7 @@ func NewHandler(s3 *S3) func(w http.ResponseWriter, r *http.Request) bool {
 			case http.MethodDelete:
 				handle(w, r, s3.DeleteObject)
 			default:
-				panic("unknown method")
+				panic("Unhandled method")
 			}
 		}
 		return true

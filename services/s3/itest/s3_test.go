@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -255,5 +256,69 @@ func TestBucketTagging(t *testing.T) {
 
 	if len(tagging.TagSet) != 0 {
 		t.Fatal("bad tags")
+	}
+}
+
+func TestDeleteObjects(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	for i := 0; i < 4; i++ {
+		_, err := client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: &bucket,
+			Key:    aws.String(strconv.Itoa(i)),
+			Body:   strings.NewReader(""),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: &bucket,
+		Key:    aws.String("1"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		Bucket: &bucket,
+		Delete: &types.Delete{
+			Objects: []types.ObjectIdentifier{
+				{Key: aws.String("2")},
+			},
+			Quiet: true,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(output.Deleted) != 0 {
+		t.Fatal("Not quiet!")
+	}
+
+	output, err = client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		Bucket: &bucket,
+		Delete: &types.Delete{
+			Objects: []types.ObjectIdentifier{
+				{Key: aws.String("3")},
+				{Key: aws.String("4")},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(output.Deleted, []types.DeletedObject{
+		{Key: aws.String("3")},
+	}) {
+		t.Fatal("wrong deletion?", output.Deleted)
+	}
+	if !reflect.DeepEqual(output.Errors, []types.Error{
+		{Key: aws.String("4"), Code: aws.String("NotFound"), Message: aws.String("")},
+	}) {
+		t.Fatal("wrong error?", output.Errors)
 	}
 }

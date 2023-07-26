@@ -288,6 +288,20 @@ func (k *KMS) GenerateDataKeyWithoutPlaintext(
 	}, nil
 }
 
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_GenerateRandom.html
+func (k *KMS) GenerateRandom(input GenerateRandomInput) (*GenerateRandomOutput, *awserrors.Error) {
+	if input.NumberOfBytes < 0 || input.NumberOfBytes > 1024 {
+		return nil, ValidationError("Invalid NumberOfBytes")
+	}
+
+	data := make([]byte, input.NumberOfBytes)
+	rand.Read(data)
+
+	return &GenerateRandomOutput{
+		Plaintext: data,
+	}, nil
+}
+
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_Encrypt.html
 func (k *KMS) Encrypt(input EncryptInput) (*EncryptOutput, *awserrors.Error) {
 	k.mu.Lock()

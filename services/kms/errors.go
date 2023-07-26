@@ -3,43 +3,19 @@ package kms
 import "aws-in-a-box/awserrors"
 
 func InvalidAliasNameException(message string) *awserrors.Error {
-	return &awserrors.Error{
-		Code: 400,
-		Body: awserrors.ErrorBody{
-			Type:    "InvalidAliasNameException",
-			Message: message,
-		},
-	}
+	return awserrors.Generate400Exception("InvalidAliasNameException", message)
 }
 
 func AlreadyExistsException(message string) *awserrors.Error {
-	return &awserrors.Error{
-		Code: 400,
-		Body: awserrors.ErrorBody{
-			Type:    "AlreadyExistsException",
-			Message: message,
-		},
-	}
+	return awserrors.Generate400Exception("AlreadyExistsException", message)
 }
 
 func DisabledException(message string) *awserrors.Error {
-	return &awserrors.Error{
-		Code: 400,
-		Body: awserrors.ErrorBody{
-			Type:    "DisabledException",
-			Message: message,
-		},
-	}
+	return awserrors.Generate400Exception("DisabledException", message)
 }
 
 func InvalidCiphertextException(message string) *awserrors.Error {
-	return &awserrors.Error{
-		Code: 400,
-		Body: awserrors.ErrorBody{
-			Type:    "InvalidCiphertextException",
-			Message: message,
-		},
-	}
+	return awserrors.Generate400Exception("InvalidCiphertextException", message)
 }
 
 func KMSInternalException(message string) *awserrors.Error {
@@ -53,51 +29,25 @@ func KMSInternalException(message string) *awserrors.Error {
 }
 
 func NotFoundException(message string) *awserrors.Error {
-	return &awserrors.Error{
-		Code: 400,
-		Body: awserrors.ErrorBody{
-			Type:    "NotFoundException",
-			Message: message,
-		},
-	}
+	return awserrors.Generate400Exception("NotFoundException", message)
 }
 
 func TagException(message string) *awserrors.Error {
-	return &awserrors.Error{
-		Code: 400,
-		Body: awserrors.ErrorBody{
-			Type:    "TagException",
-			Message: message,
-		},
-	}
+	return awserrors.Generate400Exception("TagException", message)
 }
 
 func UnsupportedOperationException(message string) *awserrors.Error {
-	return &awserrors.Error{
-		Code: 400,
-		Body: awserrors.ErrorBody{
-			Type:    "UnsupportedOperationException",
-			Message: message,
-		},
-	}
+	return awserrors.Generate400Exception("UnsupportedOperationException", message)
 }
 
 func InvalidParameterCombination(message string) *awserrors.Error {
-	return &awserrors.Error{
-		Code: 400,
-		Body: awserrors.ErrorBody{
-			Type:    "InvalidParameterCombination",
-			Message: message,
-		},
-	}
+	return awserrors.Generate400Exception("InvalidParameterCombination", message)
+}
+
+func ValidationError(message string) *awserrors.Error {
+	return awserrors.Generate400Exception("ValidationError", message)
 }
 
 func XXXTodoException(message string) *awserrors.Error {
-	return &awserrors.Error{
-		Code: 400,
-		Body: awserrors.ErrorBody{
-			Type:    "XXXTodoException",
-			Message: message,
-		},
-	}
+	return awserrors.XXX_TODO(message)
 }

@@ -60,6 +60,14 @@ type GenerateDataKeyWithoutPlaintextOutput struct {
 	KeyId          string
 }
 
+type GenerateRandomInput struct {
+	NumberOfBytes int
+}
+
+type GenerateRandomOutput struct {
+	Plaintext []byte
+}
+
 type EncryptInput struct {
 	EncryptionAlgorithm string
 	EncryptionContext   map[string]string

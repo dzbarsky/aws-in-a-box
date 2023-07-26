@@ -18,6 +18,7 @@ func (k *KMS) RegisterHTTPHandlers(logger *slog.Logger, methodRegistry http.Regi
 	http.Register(logger, methodRegistry, service, "Encrypt", k.Encrypt)
 	http.Register(logger, methodRegistry, service, "GenerateDataKey", k.GenerateDataKey)
 	http.Register(logger, methodRegistry, service, "GenerateDataKeyWithoutPlaintext", k.GenerateDataKeyWithoutPlaintext)
+	http.Register(logger, methodRegistry, service, "GenerateRandom", k.GenerateRandom)
 	http.Register(logger, methodRegistry, service, "ListAliases", k.ListAliases)
 	http.Register(logger, methodRegistry, service, "ListKeys", k.ListKeys)
 	http.Register(logger, methodRegistry, service, "ListResourceTags", k.ListResourceTags)

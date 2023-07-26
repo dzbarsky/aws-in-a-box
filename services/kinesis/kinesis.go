@@ -51,12 +51,23 @@ type consumerSubscription struct {
 	Chan         chan *APISubscribeToShardEvent
 }
 
+type StreamStatus string
+
+const (
+	StatusCreating StreamStatus = "CREATING"
+	StatusActive   StreamStatus = "ACTIVE"
+	StatusDeleting StreamStatus = "DELETING"
+	// TODO: use updating
+	StatusUpdating StreamStatus = "UPDATING"
+)
+
 type Stream struct {
 	// Immutable
 	Name              string
 	CreationTimestamp int64
 
 	// Mutable
+	Status          StreamStatus
 	Retention       time.Duration
 	Shards          []*Shard
 	Tags            map[string]string
@@ -64,9 +75,11 @@ type Stream struct {
 }
 
 type Kinesis struct {
-	logger           *slog.Logger
-	arnGenerator     arn.Generator
-	defaultRetention time.Duration
+	logger               *slog.Logger
+	arnGenerator         arn.Generator
+	defaultRetention     time.Duration
+	streamCreateDuration time.Duration
+	streamDeleteDuration time.Duration
 
 	mu               sync.Mutex
 	streams          map[string]*Stream
@@ -75,9 +88,11 @@ type Kinesis struct {
 }
 
 type Options struct {
-	Logger           *slog.Logger
-	ArnGenerator     arn.Generator
-	DefaultRetention time.Duration
+	Logger               *slog.Logger
+	ArnGenerator         arn.Generator
+	DefaultRetention     time.Duration
+	StreamCreateDuration time.Duration
+	StreamDeleteDuration time.Duration
 }
 
 func New(options Options) *Kinesis {
@@ -86,11 +101,13 @@ func New(options Options) *Kinesis {
 	}
 
 	k := &Kinesis{
-		logger:           options.Logger,
-		arnGenerator:     options.ArnGenerator,
-		defaultRetention: options.DefaultRetention,
-		streams:          map[string]*Stream{},
-		consumersByARN:   map[string]*Consumer{},
+		logger:               options.Logger,
+		arnGenerator:         options.ArnGenerator,
+		defaultRetention:     options.DefaultRetention,
+		streamCreateDuration: options.StreamCreateDuration,
+		streamDeleteDuration: options.StreamDeleteDuration,
+		streams:              map[string]*Stream{},
+		consumersByARN:       map[string]*Consumer{},
 	}
 	if options.DefaultRetention > 0 {
 		go func() {
@@ -142,7 +159,13 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (*CreateStreamOutput, *a
 		return nil, XXXTodoException("Stream already exists")
 	}
 
+	initialStatus := StatusCreating
+	if k.streamCreateDuration == 0 {
+		initialStatus = StatusActive
+	}
+
 	stream := &Stream{
+		Status:            initialStatus,
 		Name:              input.StreamName,
 		Retention:         k.defaultRetention,
 		CreationTimestamp: time.Now().UnixNano(),
@@ -178,6 +201,16 @@ func (k *Kinesis) CreateStream(input CreateStreamInput) (*CreateStreamOutput, *a
 	}
 
 	k.streams[input.StreamName] = stream
+
+	if k.streamCreateDuration != 0 {
+		go func() {
+			<-time.After(k.streamCreateDuration)
+			k.mu.Lock()
+			defer k.mu.Unlock()
+			stream.Status = StatusActive
+		}()
+	}
+
 	return nil, nil
 }
 
@@ -191,11 +224,23 @@ func (k *Kinesis) DeleteStream(input DeleteStreamInput) (*DeleteStreamOutput, *a
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	if _, ok := k.streams[streamName]; !ok {
+	stream, ok := k.streams[streamName]
+	if !ok {
 		return nil, awserrors.ResourceNotFoundException("")
 	}
 
-	delete(k.streams, streamName)
+	if k.streamDeleteDuration == 0 {
+		delete(k.streams, streamName)
+	} else {
+		stream.Status = StatusDeleting
+		go func() {
+			<-time.After(k.streamCreateDuration)
+			k.mu.Lock()
+			defer k.mu.Unlock()
+			delete(k.streams, streamName)
+		}()
+	}
+
 	return nil, nil
 }
 
@@ -508,8 +553,7 @@ func (k *Kinesis) DescribeStreamSummary(input DescribeStreamSummaryInput) (*Desc
 			StreamARN:               k.arnForStream(stream.Name),
 			StreamCreationTimestamp: stream.CreationTimestamp,
 			StreamName:              stream.Name,
-			// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_StreamDescriptionSummary.html#Streams-Type-StreamDescriptionSummary-StreamStatus
-			StreamStatus: "ACTIVE", // TODO
+			StreamStatus:            string(stream.Status),
 		},
 	}, nil
 }

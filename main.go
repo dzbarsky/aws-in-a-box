@@ -51,6 +51,10 @@ func main() {
 		"How many shards to create for each stream listed in -kinesisInitialStreams")
 	kinesisDefaultDuration := flag.Duration("kinesisDefaultDuration", 24*time.Hour,
 		"How long to retain messages. Can be used to control memory usage. After creation, retention can be adjusted with [Increase/Decrease]StreamRetentionPeriod")
+	kinesisStreamCreateDuration := flag.Duration("kinesisStreamCreateDuration", 5*time.Second,
+		"How long a new Kinesis stream stays in CREATING status")
+	kinesisStreamDeleteDuration := flag.Duration("kinesisStreamDeleteDuration", 5*time.Second,
+		"How long a deleted Kinesis stream stays in DELETING status")
 
 	enableKMS := flag.Bool("enableKMS", true, "Enable Kinesis service")
 
@@ -91,9 +95,11 @@ func main() {
 	if *enableKinesis {
 		logger := logger.With("service", "kinesis")
 		k := kinesis.New(kinesis.Options{
-			Logger:           logger,
-			ArnGenerator:     arnGenerator,
-			DefaultRetention: *kinesisDefaultDuration,
+			Logger:               logger,
+			ArnGenerator:         arnGenerator,
+			DefaultRetention:     *kinesisDefaultDuration,
+			StreamCreateDuration: *kinesisStreamCreateDuration,
+			StreamDeleteDuration: *kinesisStreamDeleteDuration,
 		})
 		for _, name := range strings.Split(*kinesisInitialStreams, ",") {
 			k.CreateStream(kinesis.CreateStreamInput{

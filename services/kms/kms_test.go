@@ -9,12 +9,14 @@ import (
 	"aws-in-a-box/arn"
 )
 
+var kmsOptions = Options{
+	ArnGenerator: arn.Generator{
+		AwsAccountId: "12345",
+		Region:       "us-east-1",
+	}}
+
 func newKMSWithKeyReturningARN() (*KMS, string, string) {
-	k, err := New(Options{
-		ArnGenerator: arn.Generator{
-			AwsAccountId: "12345",
-			Region:       "us-east-1",
-		}})
+	k, err := New(kmsOptions)
 	if err != nil {
 		panic(err)
 	}
@@ -330,6 +332,50 @@ func TestEncryptDecrypt(t *testing.T) {
 			KeyId:             id,
 			CiphertextBlob:    ciphertext,
 			EncryptionContext: context,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(plaintext, decryptOutput.Plaintext) {
+			t.Fatalf("bad encryption result; got %v, want %v", decryptOutput.Plaintext, plaintext)
+		}
+	}
+}
+
+func TestRSAEncryptDecrypt(t *testing.T) {
+	k, err := New(kmsOptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output, awserr := k.CreateKey(CreateKeyInput{
+		KeySpec:  "RSA_4096",
+		KeyUsage: "ENCRYPT_DECRYPT",
+	})
+	if awserr != nil {
+		t.Fatal(awserr)
+	}
+
+	keyId := output.KeyMetadata.KeyId
+
+	algorithms := []string{"RSAES_OAEP_SHA_1", "RSAES_OAEP_SHA_256"}
+	for _, algorithm := range algorithms {
+		plaintext := []byte("The quick brown fox") //jumps over the lazy dog")
+		encryptOutput, err := k.Encrypt(EncryptInput{
+			KeyId:               keyId,
+			Plaintext:           plaintext,
+			EncryptionAlgorithm: algorithm,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ciphertext := encryptOutput.CiphertextBlob
+
+		decryptOutput, err := k.Decrypt(DecryptInput{
+			KeyId:               keyId,
+			CiphertextBlob:      ciphertext,
+			EncryptionAlgorithm: algorithm,
 		})
 		if err != nil {
 			t.Fatal(err)

@@ -184,10 +184,15 @@ func newFromData(data []byte) (*Key, error) {
 }
 
 func (k *Key) Encrypt(
-	plaintext []byte, context map[string]string,
+	plaintext []byte,
+	algorithm string,
+	context map[string]string,
 ) (
 	[]byte, error,
 ) {
+	if k.rsaKey.key != nil {
+		return k.rsaKey.Encrypt(plaintext, algorithm)
+	}
 	ciphertext, version, err := k.aesKey.Encrypt(plaintext, context)
 	if err != nil {
 		return nil, err
@@ -200,10 +205,13 @@ func (k *Key) Encrypt(
 }
 
 func (k *Key) Decrypt(
-	data []byte, context map[string]string,
+	data []byte, algorithm string, context map[string]string,
 ) (
 	[]byte, error,
 ) {
+	if k.rsaKey.key != nil {
+		return k.rsaKey.Decrypt(data, algorithm)
+	}
 	version, data := binary.LittleEndian.Uint32(data[:4]), data[4:]
 	return k.aesKey.Decrypt(data, version, context)
 }

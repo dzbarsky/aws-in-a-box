@@ -130,7 +130,7 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 			return nil, UnsupportedOperationException("Bad KeyUsage")
 		}
 
-		bits, _ := strconv.Atoi(keySpec[5:])
+		bits, _ := strconv.Atoi(keySpec[4:])
 		rsaKey, err := key.NewRSA(persistPath, usage, bits, keyId, tags)
 		if err != nil {
 			return nil, KMSInternalException(err.Error())
@@ -365,7 +365,7 @@ func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (*GenerateDataKeyOutpu
 	}
 
 	// TODO: check for AES key when we have non-AES support
-	encryptedDataKey, err := key.Encrypt(dataKey, input.EncryptionContext)
+	encryptedDataKey, err := key.Encrypt(dataKey, "", input.EncryptionContext)
 	if err != nil {
 		return nil, KMSInternalException(err.Error())
 	}
@@ -419,16 +419,20 @@ func (k *KMS) Encrypt(input EncryptInput) (*EncryptOutput, *awserrors.Error) {
 		input.EncryptionAlgorithm = "SYMMETRIC_DEFAULT"
 	}
 
-	key := k.lockedGetKey(input.KeyId)
-	if key == nil {
+	encryptionKey := k.lockedGetKey(input.KeyId)
+	if encryptionKey == nil {
 		return nil, NotFoundException("")
 	}
 
-	if !key.Enabled() {
+	if !encryptionKey.Enabled() {
 		return nil, DisabledException("")
 	}
 
-	ciphertext, err := key.Encrypt(input.Plaintext, input.EncryptionContext)
+	if encryptionKey.Usage() != key.EncryptDecrypt {
+		return nil, UnsupportedOperationException("")
+	}
+
+	ciphertext, err := encryptionKey.Encrypt(input.Plaintext, input.EncryptionAlgorithm, input.EncryptionContext)
 	if err != nil {
 		return nil, KMSInternalException(err.Error())
 	}
@@ -436,7 +440,7 @@ func (k *KMS) Encrypt(input EncryptInput) (*EncryptOutput, *awserrors.Error) {
 	return &EncryptOutput{
 		CiphertextBlob:      ciphertext,
 		EncryptionAlgorithm: input.EncryptionAlgorithm,
-		KeyId:               key.Id(),
+		KeyId:               encryptionKey.Id(),
 	}, nil
 }
 
@@ -446,20 +450,22 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 		input.EncryptionAlgorithm = "SYMMETRIC_DEFAULT"
 	}
 
-	// Opposite of Key.Encrypt
-	data := input.CiphertextBlob
-	if len(data) == 0 {
+	keyArn := input.KeyId
+
+	ciphertext := input.CiphertextBlob
+	if len(ciphertext) == 0 {
 		return nil, InvalidCiphertextException("")
 	}
 
-	keyArnLen, data := uint8(data[0]), data[1:]
-	if len(data) < 4+int(keyArnLen) {
-		return nil, InvalidCiphertextException("")
-	}
-	keyArn, data := string(data[:keyArnLen]), data[keyArnLen:]
-
-	if input.KeyId != "" {
-		keyArn = input.KeyId
+	if keyArn == "" {
+		// AES can pack keyId into the ciphertext
+		// This logic is the opposite of Key.Encrypt
+		data := ciphertext
+		keyArnLen, data := uint8(data[0]), data[1:]
+		if len(data) < 4+int(keyArnLen) {
+			return nil, InvalidCiphertextException("")
+		}
+		keyArn, ciphertext = string(data[:keyArnLen]), data[keyArnLen:]
 	}
 
 	k.mu.Lock()
@@ -474,7 +480,7 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 		return nil, DisabledException("")
 	}
 
-	plaintext, err := key.Decrypt(data, input.EncryptionContext)
+	plaintext, err := key.Decrypt(ciphertext, input.EncryptionAlgorithm, input.EncryptionContext)
 	if err != nil {
 		return nil, InvalidCiphertextException(err.Error())
 	}

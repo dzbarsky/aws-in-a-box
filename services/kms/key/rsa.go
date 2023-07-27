@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
 	"errors"
@@ -98,4 +99,36 @@ func (k rsaKey) Verify(
 	default:
 		return InvalidSigningAlgorithm{}
 	}
+}
+
+func (k rsaKey) Encrypt(
+	plaintext []byte, algorithm string,
+) ([]byte, error) {
+	var hasher hash.Hash
+	switch algorithm {
+	case "RSAES_OAEP_SHA_1":
+		hasher = sha1.New()
+	case "RSAES_OAEP_SHA_256":
+		hasher = sha256.New()
+	default:
+		return nil, errors.New("unknown encryption algorithm")
+	}
+
+	return rsa.EncryptOAEP(hasher, rand.Reader, &k.key.PublicKey, plaintext, nil)
+}
+
+func (k rsaKey) Decrypt(
+	ciphertext []byte, algorithm string,
+) ([]byte, error) {
+	var hasher hash.Hash
+	switch algorithm {
+	case "RSAES_OAEP_SHA_1":
+		hasher = sha1.New()
+	case "RSAES_OAEP_SHA_256":
+		hasher = sha256.New()
+	default:
+		return nil, errors.New("unknown encryption algorithm")
+	}
+
+	return rsa.DecryptOAEP(hasher, rand.Reader, k.key, ciphertext, nil)
 }

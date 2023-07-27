@@ -4,6 +4,7 @@ type CreateKeyInput struct {
 	Description           string
 	CustomerMasterKeySpec string
 	KeySpec               string
+	KeyUsage              string
 	Tags                  []APITag
 }
 
@@ -23,6 +24,33 @@ type DeleteAliasInput struct {
 }
 
 type DeleteAliasOutput struct{}
+
+type SignInput struct {
+	KeyId            string
+	Message          []byte
+	SigningAlgorithm string
+	MessageType      string
+}
+
+type SignOutput struct {
+	KeyId            string
+	Signature        []byte
+	SigningAlgorithm string
+}
+
+type VerifyInput struct {
+	KeyId            string
+	Message          []byte
+	MessageType      string
+	Signature        []byte
+	SigningAlgorithm string
+}
+
+type VerifyOutput struct {
+	KeyId            string
+	SignatureValid   bool
+	SigningAlgorithm string
+}
 
 type ListAliasesInput struct {
 	KeyId string

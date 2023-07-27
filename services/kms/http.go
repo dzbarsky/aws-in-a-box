@@ -23,6 +23,8 @@ func (k *KMS) RegisterHTTPHandlers(logger *slog.Logger, methodRegistry http.Regi
 	http.Register(logger, methodRegistry, service, "ListKeys", k.ListKeys)
 	http.Register(logger, methodRegistry, service, "ListResourceTags", k.ListResourceTags)
 	http.Register(logger, methodRegistry, service, "ReEncrypt", k.ReEncrypt)
+	http.Register(logger, methodRegistry, service, "Sign", k.Sign)
 	http.Register(logger, methodRegistry, service, "TagResource", k.TagResource)
 	http.Register(logger, methodRegistry, service, "UntagResource", k.UntagResource)
+	http.Register(logger, methodRegistry, service, "Verify", k.Verify)
 }

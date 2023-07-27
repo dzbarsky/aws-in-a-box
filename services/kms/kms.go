@@ -3,9 +3,12 @@ package kms
 import (
 	"aws-in-a-box/arn"
 	"crypto/rand"
+	"crypto/rsa"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -98,21 +101,41 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 		keySpec = input.CustomerMasterKeySpec
 	}
 
+	persistPath := ""
+	if k.persistDir != "" {
+		persistPath = filepath.Join(k.persistDir, keyId+".json")
+	}
+	usage := key.Usage(input.KeyUsage)
 	switch keySpec {
 	case "", "SYMMETRIC_DEFAULT":
-		persistPath := ""
-		if k.persistDir != "" {
-			persistPath = filepath.Join(k.persistDir, keyId+".json")
+		if usage == "" {
+			usage = key.EncryptDecrypt
 		}
-		aesKey, err := key.NewAES(persistPath, keyId, tags)
+		if usage != key.EncryptDecrypt {
+			return nil, UnsupportedOperationException("Bad KeyUsage")
+		}
+
+		aesKey, err := key.NewAES(persistPath, usage, keyId, tags)
 		if err != nil {
 			return nil, KMSInternalException(err.Error())
 		}
 		k.keys[keyId] = aesKey
 	case "HMAC_224", "HMAC_256", "HMAC_384", "HMAC_512":
+		if usage != key.GenerateVerifyMAC {
+			return nil, UnsupportedOperationException("Bad KeyUsage")
+		}
 		return nil, UnsupportedOperationException("")
 	case "RSA_2048", "RSA_3072", "RSA_4096":
-		return nil, UnsupportedOperationException("")
+		if usage != key.EncryptDecrypt && usage != key.SignVerify {
+			return nil, UnsupportedOperationException("Bad KeyUsage")
+		}
+
+		bits, _ := strconv.Atoi(keySpec[5:])
+		rsaKey, err := key.NewRSA(persistPath, usage, bits, keyId, tags)
+		if err != nil {
+			return nil, KMSInternalException(err.Error())
+		}
+		k.keys[keyId] = rsaKey
 	case "ECC_NIST_P256", "ECC_NIST_P384", "ECC_NIST_P521":
 		return nil, UnsupportedOperationException("")
 	default:
@@ -190,6 +213,87 @@ func (k *KMS) CreateAlias(input CreateAliasInput) (*CreateAliasOutput, *awserror
 
 	k.aliases[aliasName] = key.Id()
 	return nil, nil
+}
+
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_Sign.html
+func (k *KMS) Sign(input SignInput) (*SignOutput, *awserrors.Error) {
+	signingKey := k.lockedGetKey(input.KeyId)
+	if signingKey == nil {
+		return nil, NotFoundException("")
+	}
+
+	if signingKey.Usage() != key.SignVerify {
+		return nil, UnsupportedOperationException("")
+	}
+
+	hasher, err := key.HasherForAlgorithm(key.SigningAlgorithm(input.SigningAlgorithm))
+	if errors.Is(err, key.InvalidSigningAlgorithm{}) {
+		return nil, UnsupportedOperationException("Unsupported SigningAlgorithm")
+	}
+
+	var digest []byte
+	switch input.MessageType {
+	case "", "RAW":
+		digest = hasher.Sum(input.Message)
+	case "DIGEST":
+		digest = input.Message
+	default:
+		return nil, ValidationError("Bad MessageType")
+	}
+
+	signature, err := signingKey.Sign(digest, key.SigningAlgorithm(input.SigningAlgorithm))
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
+
+	return &SignOutput{
+		KeyId:            signingKey.Id(),
+		Signature:        signature,
+		SigningAlgorithm: input.SigningAlgorithm,
+	}, nil
+}
+
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_Verify.html
+func (k *KMS) Verify(input VerifyInput) (*VerifyOutput, *awserrors.Error) {
+	signingKey := k.lockedGetKey(input.KeyId)
+	if signingKey == nil {
+		return nil, NotFoundException("")
+	}
+
+	if signingKey.Usage() != key.SignVerify {
+		return nil, UnsupportedOperationException("")
+	}
+
+	hasher, err := key.HasherForAlgorithm(key.SigningAlgorithm(input.SigningAlgorithm))
+	if errors.Is(err, key.InvalidSigningAlgorithm{}) {
+		return nil, UnsupportedOperationException("Unsupported SigningAlgorithm")
+	}
+
+	var digest []byte
+	switch input.MessageType {
+	case "", "RAW":
+		digest = hasher.Sum(input.Message)
+	case "DIGEST":
+		digest = input.Message
+	default:
+		return nil, ValidationError("Bad MessageType")
+	}
+
+	valid := true
+	err = signingKey.Verify(digest, input.Signature, key.SigningAlgorithm(input.SigningAlgorithm))
+	if err != nil {
+		if errors.Is(err, rsa.ErrVerification) {
+			valid = false
+		} else {
+			return nil, KMSInternalException("")
+		}
+	}
+
+	return &VerifyOutput{
+		KeyId:            signingKey.Id(),
+		SignatureValid:   valid,
+		SigningAlgorithm: input.SigningAlgorithm,
+	}, nil
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_DeleteAlias.html

@@ -13,16 +13,16 @@ type aesKey struct {
 	backingKeys [][32]byte
 }
 
-func newAesKey() *aesKey {
+func newAesKey() aesKey {
 	var backingKey [32]byte
 	rand.Read(backingKey[:])
 
-	return &aesKey{
+	return aesKey{
 		backingKeys: [][32]byte{backingKey},
 	}
 }
 
-func (a *aesKey) Encrypt(
+func (a aesKey) Encrypt(
 	plaintext []byte, context map[string]string,
 ) (
 	[]byte, uint32, error,
@@ -56,7 +56,7 @@ func (a *aesKey) Encrypt(
 	return append(nonce, ciphertext...), version, nil
 }
 
-func (a *aesKey) Decrypt(
+func (a aesKey) Decrypt(
 	ciphertext []byte, version uint32, context map[string]string,
 ) (
 	[]byte, error,

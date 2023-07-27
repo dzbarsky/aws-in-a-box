@@ -22,7 +22,7 @@ jobs:
           go-version: '1.20'
 
       - name: Build
-        run: GOOS=${{ matrix.go_os }} GOARCH=${{ matrix.go_arch }} CGO_ENABLED=0 go build -trimpath -o ./aws-in-a-box-${{ matrix.go_os }}-${{ matrix.go_arch }}
+        run: GOOS=${{ matrix.go_os }} GOARCH=${{ matrix.go_arch }} CGO_ENABLED=0 go build -ldflags "-w" -trimpath -o ./aws-in-a-box-${{ matrix.go_os }}-${{ matrix.go_arch }}
 
       - name: Release artifact
         uses: softprops/action-gh-release@v1

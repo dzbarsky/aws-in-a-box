@@ -3,7 +3,7 @@ WORKDIR src/
 COPY go.mod go.sum .
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -o /aws-in-a-box
+RUN CGO_ENABLED=0 go build -ldflags "-w" -trimpath -o /aws-in-a-box
 
 
 FROM scratch

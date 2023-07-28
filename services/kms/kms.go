@@ -1,11 +1,12 @@
 package kms
 
 import (
-	"aws-in-a-box/arn"
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/sha512"
+	"encoding/json"
 	"errors"
 	"hash"
 	"os"
@@ -18,6 +19,8 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"golang.org/x/exp/slog"
 
+	"aws-in-a-box/arn"
+	"aws-in-a-box/atomicfile"
 	"aws-in-a-box/awserrors"
 	"aws-in-a-box/services/kms/key"
 )
@@ -42,12 +45,15 @@ type Options struct {
 	PersistDir   string
 }
 
+const aliasesFilename = "aliases.json"
+
 func New(options Options) (*KMS, error) {
 	if options.Logger == nil {
 		options.Logger = slog.Default()
 	}
 
 	keys := make(map[KeyId]*key.Key)
+	aliases := make(map[string]KeyId)
 
 	if options.PersistDir != "" {
 		options.PersistDir = filepath.Join(options.PersistDir, "kms")
@@ -63,7 +69,16 @@ func New(options Options) (*KMS, error) {
 		for _, file := range files {
 			name := file.Name()
 			fullPath := filepath.Join(options.PersistDir, name)
-			if strings.HasSuffix(name, ".tmp") {
+			if name == aliasesFilename {
+				data, err := os.ReadFile(fullPath)
+				if err != nil {
+					return nil, err
+				}
+				err = json.Unmarshal(data, &aliases)
+				if err != nil {
+					return nil, err
+				}
+			} else if strings.HasSuffix(name, ".tmp") {
 				os.Remove(fullPath)
 			} else if strings.HasSuffix(name, ".json") {
 				key, err := key.NewFromFile(fullPath)
@@ -82,6 +97,16 @@ func New(options Options) (*KMS, error) {
 		aliases:      make(map[string]KeyId),
 		keys:         keys,
 	}, nil
+}
+
+func (k *KMS) persistAliases() error {
+	data, err := json.Marshal(k.aliases)
+	if err != nil {
+		return err
+	}
+	aliasPath := filepath.Join(k.persistDir, aliasesFilename)
+	_, err = atomicfile.Write(aliasPath, bytes.NewReader(data), 0600)
+	return err
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateKey.html
@@ -175,9 +200,6 @@ func (k *KMS) DescribeKey(input DescribeKeyInput) (*DescribeKeyOutput, *awserror
 	}, nil
 }
 
-// TODO:
-// DescribeKey
-// Persist Aliases correctly
 func (k *KMS) toAPI(key *key.Key) APIKeyMetadata {
 	return APIKeyMetadata{
 		Arn:         k.arnGenerator.Generate("kms", "key", key.Id()),

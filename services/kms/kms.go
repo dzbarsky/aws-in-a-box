@@ -2,10 +2,14 @@ package kms
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/sha512"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"hash"
@@ -458,6 +462,86 @@ func (k *KMS) GenerateDataKeyWithoutPlaintext(
 	return &GenerateDataKeyWithoutPlaintextOutput{
 		CiphertextBlob: output.CiphertextBlob,
 		KeyId:          output.KeyId,
+	}, nil
+}
+
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_GenerateDataKeyPair.html
+func (k *KMS) GenerateDataKeyPair(input GenerateDataKeyPairInput) (*GenerateDataKeyPairOutput, *awserrors.Error) {
+	var pkey interface {
+		Public() crypto.PublicKey
+	}
+	var err error
+
+	switch input.KeyPairSpec {
+	case "RSA_2048", "RSA_3072", "RSA_4096":
+		bits, _ := strconv.Atoi(input.KeyPairSpec[4:])
+		pkey, err = rsa.GenerateKey(rand.Reader, bits)
+	case "ECC_NIST_P256":
+		pkey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	case "ECC_NIST_P384":
+		pkey, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	case "ECC_NIST_P521":
+		pkey, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+	case "":
+		return nil, ValidationError("Must specify KeyPairSpec")
+	case "ECC_SECG_P256K1":
+		// fallthrough
+	default:
+		return nil, ValidationError("Unknown value for KeyPair Spec")
+	}
+
+	serializedPublicKey, err := x509.MarshalPKIXPublicKey(pkey.Public())
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
+
+	serializedPrivateKey, err := x509.MarshalPKCS8PrivateKey(pkey)
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	encryptionKey := k.lockedGetKey(input.KeyId)
+	if encryptionKey == nil {
+		return nil, NotFoundException("")
+	}
+
+	if !encryptionKey.Enabled() {
+		return nil, DisabledException("")
+	}
+
+	if encryptionKey.Usage() != key.EncryptDecrypt || !encryptionKey.IsAES() {
+		return nil, UnsupportedOperationException("")
+	}
+
+	encryptedPrivateKey, err := encryptionKey.Encrypt(serializedPrivateKey, "", input.EncryptionContext)
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
+
+	return &GenerateDataKeyPairOutput{
+		KeyId:                    encryptionKey.Id(),
+		KeyPairSpec:              input.KeyPairSpec,
+		PrivateKeyCiphertextBlob: encryptedPrivateKey,
+		PrivateKeyPlaintext:      serializedPrivateKey,
+		PublicKey:                serializedPublicKey,
+	}, nil
+}
+
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_GenerateDataKeyPairWithoutPlaintext.html
+func (k *KMS) GenerateDataKeyPairWithoutPlaintext(
+	input GenerateDataKeyPairWithoutPlaintextInput,
+) (*GenerateDataKeyPairWithoutPlaintextOutput, *awserrors.Error) {
+	output, err := k.GenerateDataKeyPair(input)
+	if err != nil {
+		return nil, err
+	}
+	return &GenerateDataKeyPairWithoutPlaintextOutput{
+		KeyId:                    output.KeyId,
+		KeyPairSpec:              output.KeyPairSpec,
+		PrivateKeyCiphertextBlob: output.PrivateKeyCiphertextBlob,
+		PublicKey:                output.PublicKey,
 	}, nil
 }
 

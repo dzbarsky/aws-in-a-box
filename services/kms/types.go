@@ -96,6 +96,30 @@ type GenerateDataKeyWithoutPlaintextOutput struct {
 	KeyId          string
 }
 
+type GenerateDataKeyPairInput struct {
+	EncryptionContext map[string]string
+
+	KeyId       string
+	KeyPairSpec string
+}
+
+type GenerateDataKeyPairOutput struct {
+	KeyId                    string
+	KeyPairSpec              string
+	PrivateKeyCiphertextBlob []byte
+	PrivateKeyPlaintext      []byte
+	PublicKey                []byte
+}
+
+type GenerateDataKeyPairWithoutPlaintextInput = GenerateDataKeyPairInput
+
+type GenerateDataKeyPairWithoutPlaintextOutput struct {
+	KeyId                    string
+	KeyPairSpec              string
+	PrivateKeyCiphertextBlob []byte
+	PublicKey                []byte
+}
+
 type GenerateRandomInput struct {
 	NumberOfBytes int
 }

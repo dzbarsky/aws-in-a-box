@@ -2,9 +2,11 @@ package key
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/rsa"
 	"encoding/binary"
 	"encoding/json"
+	"hash"
 	"os"
 
 	"golang.org/x/exp/maps"
@@ -40,8 +42,13 @@ type Key struct {
 	enabled bool
 	tags    map[string]string
 
-	aesKey aesKey
-	rsaKey rsaKey
+	aesKey  aesKey
+	rsaKey  rsaKey
+	hmacKey hmacKey
+}
+
+func (k Key) IsAES() bool {
+	return len(k.aesKey.backingKeys) > 0
 }
 
 func (k Key) Id() string {
@@ -98,6 +105,7 @@ type serializableKey struct {
 	Tags    map[string]string
 	AesKeys [][32]byte
 	RsaKey  *rsa.PrivateKey
+	HmacKey []byte
 }
 
 func (k *Key) serialize() ([]byte, error) {
@@ -108,6 +116,7 @@ func (k *Key) serialize() ([]byte, error) {
 		Tags:    k.tags,
 		AesKeys: k.aesKey.backingKeys,
 		RsaKey:  k.rsaKey.key,
+		HmacKey: k.hmacKey.key,
 	})
 }
 
@@ -148,6 +157,22 @@ func NewRSA(persistPath string, usage Usage, bits int, id string, tags map[strin
 	return k, nil
 }
 
+func NewHMAC(persistPath string, usage Usage, bytes int, id string, tags map[string]string) (*Key, error) {
+	k := &Key{
+		persistPath: persistPath,
+		id:          id,
+		usage:       usage,
+		tags:        tags,
+		enabled:     true,
+		hmacKey:     newHmacKey(bytes),
+	}
+	err := k.persist()
+	if err != nil {
+		return nil, err
+	}
+	return k, nil
+}
+
 func NewFromFile(path string) (*Key, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -180,6 +205,7 @@ func newFromData(data []byte) (*Key, error) {
 		tags:    key.Tags,
 		aesKey:  aesKey{backingKeys: key.AesKeys},
 		rsaKey:  rsaKey{key: key.RsaKey},
+		hmacKey: hmacKey{key: key.HmacKey},
 	}, nil
 }
 
@@ -231,4 +257,18 @@ func (k *Key) Verify(
 	algorithm SigningAlgorithm,
 ) error {
 	return k.rsaKey.Verify(digest, signature, algorithm)
+}
+
+func (k *Key) GenerateMac(
+	hasher func() hash.Hash, message []byte,
+) []byte {
+	return k.hmacKey.GenerateMac(hasher, message)
+}
+
+func (k *Key) VerifyMac(
+	hasher func() hash.Hash,
+	message []byte,
+	mac []byte,
+) bool {
+	return hmac.Equal(mac, k.hmacKey.GenerateMac(hasher, message))
 }

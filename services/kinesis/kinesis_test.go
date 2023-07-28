@@ -247,7 +247,6 @@ func TestGetShardIterator(t *testing.T) {
 }
 
 func TestClip(t *testing.T) {
-
 	records := []APIRecord{
 		{ApproximateArrivalTimestamp: 5},
 		{ApproximateArrivalTimestamp: 10},

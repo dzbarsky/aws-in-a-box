@@ -4,7 +4,10 @@ import (
 	"aws-in-a-box/arn"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/sha512"
 	"errors"
+	"hash"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -124,7 +127,12 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 		if usage != key.GenerateVerifyMAC {
 			return nil, UnsupportedOperationException("Bad KeyUsage")
 		}
-		return nil, UnsupportedOperationException("")
+		bytes, _ := strconv.Atoi(keySpec[4:])
+		macKey, err := key.NewHMAC(persistPath, usage, bytes, keyId, tags)
+		if err != nil {
+			return nil, KMSInternalException(err.Error())
+		}
+		k.keys[keyId] = macKey
 	case "RSA_2048", "RSA_3072", "RSA_4096":
 		if usage != key.EncryptDecrypt && usage != key.SignVerify {
 			return nil, UnsupportedOperationException("Bad KeyUsage")
@@ -222,6 +230,10 @@ func (k *KMS) Sign(input SignInput) (*SignOutput, *awserrors.Error) {
 		return nil, NotFoundException("")
 	}
 
+	if !signingKey.Enabled() {
+		return nil, DisabledException("")
+	}
+
 	if signingKey.Usage() != key.SignVerify {
 		return nil, UnsupportedOperationException("")
 	}
@@ -258,6 +270,10 @@ func (k *KMS) Verify(input VerifyInput) (*VerifyOutput, *awserrors.Error) {
 	signingKey := k.lockedGetKey(input.KeyId)
 	if signingKey == nil {
 		return nil, NotFoundException("")
+	}
+
+	if !signingKey.Enabled() {
+		return nil, DisabledException("")
 	}
 
 	if signingKey.Usage() != key.SignVerify {
@@ -444,6 +460,92 @@ func (k *KMS) Encrypt(input EncryptInput) (*EncryptOutput, *awserrors.Error) {
 	}, nil
 }
 
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_GenerateMac.html
+func (k *KMS) GenerateMac(input GenerateMacInput) (*GenerateMacOutput, *awserrors.Error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if len(input.Message) == 0 || len(input.Message) > 4096 {
+		return nil, ValidationError("bad length")
+	}
+
+	var hasher func() hash.Hash
+	switch input.MacAlgorithm {
+	case "HMAC_SHA_224":
+		hasher = sha256.New224
+	case "HMAC_SHA_256":
+		hasher = sha256.New
+	case "HMAC_SHA_384":
+		hasher = sha512.New384
+	case "HMAC_SHA_512":
+		hasher = sha512.New
+	default:
+		return nil, ValidationError("bad MacAlgorithm")
+	}
+
+	macKey := k.lockedGetKey(input.KeyId)
+	if macKey == nil {
+		return nil, NotFoundException("")
+	}
+
+	if !macKey.Enabled() {
+		return nil, DisabledException("")
+	}
+
+	if macKey.Usage() != key.GenerateVerifyMAC {
+		return nil, UnsupportedOperationException("")
+	}
+
+	return &GenerateMacOutput{
+		KeyId:        macKey.Id(),
+		MacAlgorithm: input.MacAlgorithm,
+		Mac:          macKey.GenerateMac(hasher, input.Message),
+	}, nil
+}
+
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_VerifyMac.html
+func (k *KMS) VerifyMac(input VerifyMacInput) (*VerifyMacOutput, *awserrors.Error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if len(input.Message) == 0 || len(input.Message) > 4096 {
+		return nil, ValidationError("bad length")
+	}
+
+	var hasher func() hash.Hash
+	switch input.MacAlgorithm {
+	case "HMAC_SHA_224":
+		hasher = sha256.New224
+	case "HMAC_SHA_256":
+		hasher = sha256.New
+	case "HMAC_SHA_384":
+		hasher = sha512.New384
+	case "HMAC_SHA_512":
+		hasher = sha512.New
+	default:
+		return nil, ValidationError("bad MacAlgorithm")
+	}
+
+	macKey := k.lockedGetKey(input.KeyId)
+	if macKey == nil {
+		return nil, NotFoundException("")
+	}
+
+	if !macKey.Enabled() {
+		return nil, DisabledException("")
+	}
+
+	if macKey.Usage() != key.GenerateVerifyMAC {
+		return nil, UnsupportedOperationException("")
+	}
+
+	return &VerifyMacOutput{
+		KeyId:        macKey.Id(),
+		MacAlgorithm: input.MacAlgorithm,
+		MacValid:     macKey.VerifyMac(hasher, input.Message, input.Mac),
+	}, nil
+}
+
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_Decrypt.html
 func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 	if input.EncryptionAlgorithm == "" {
@@ -457,7 +559,12 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 		return nil, InvalidCiphertextException("")
 	}
 
-	if keyArn == "" {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	key := k.lockedGetKey(keyArn)
+
+	if keyArn == "" || key.IsAES() {
 		// AES can pack keyId into the ciphertext
 		// This logic is the opposite of Key.Encrypt
 		data := ciphertext
@@ -468,10 +575,7 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 		keyArn, ciphertext = string(data[:keyArnLen]), data[keyArnLen:]
 	}
 
-	k.mu.Lock()
-	defer k.mu.Unlock()
-
-	key := k.lockedGetKey(keyArn)
+	key = k.lockedGetKey(keyArn)
 	if key == nil {
 		return nil, NotFoundException("")
 	}

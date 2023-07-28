@@ -109,6 +109,31 @@ type EncryptOutput struct {
 	KeyId               string
 }
 
+type GenerateMacInput struct {
+	KeyId        string
+	MacAlgorithm string
+	Message      []byte
+}
+
+type GenerateMacOutput struct {
+	KeyId        string
+	MacAlgorithm string
+	Mac          []byte
+}
+
+type VerifyMacInput struct {
+	KeyId        string
+	Mac          []byte
+	MacAlgorithm string
+	Message      []byte
+}
+
+type VerifyMacOutput struct {
+	KeyId        string
+	MacAlgorithm string
+	MacValid     bool
+}
+
 type DecryptInput struct {
 	CiphertextBlob      []byte
 	EncryptionAlgorithm string

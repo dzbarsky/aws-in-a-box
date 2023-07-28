@@ -430,7 +430,10 @@ func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (*GenerateDataKeyOutpu
 		return nil, DisabledException("")
 	}
 
-	// TODO: check for AES key when we have non-AES support
+	if !key.IsSymmetric() {
+		return nil, UnsupportedOperationException("")
+	}
+
 	encryptedDataKey, err := key.Encrypt(dataKey, "", input.EncryptionContext)
 	if err != nil {
 		return nil, KMSInternalException(err.Error())

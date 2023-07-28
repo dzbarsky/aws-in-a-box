@@ -56,6 +56,18 @@ func (k Key) IsAES() bool {
 	return len(k.aesKey.backingKeys) > 0
 }
 
+func (k Key) IsRSA() bool {
+	return k.rsaKey.key != nil
+}
+
+func (k Key) IsHMAC() bool {
+	return len(k.hmacKey.key) > 0
+}
+
+func (k Key) IsSymmetric() bool {
+	return k.IsAES() || k.IsHMAC()
+}
+
 func (k Key) Id() string {
 	return k.id
 }

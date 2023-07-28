@@ -108,55 +108,83 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 	if k.persistDir != "" {
 		persistPath = filepath.Join(k.persistDir, keyId+".json")
 	}
+
 	usage := key.Usage(input.KeyUsage)
+	options := key.Options{
+		PersistPath: persistPath,
+		Usage:       usage,
+		Id:          keyId,
+		Description: input.Description,
+		Tags:        tags,
+	}
+
+	var newKey *key.Key
+	var err error
+
 	switch keySpec {
 	case "", "SYMMETRIC_DEFAULT":
-		if usage == "" {
-			usage = key.EncryptDecrypt
+		if options.Usage == "" {
+			options.Usage = key.EncryptDecrypt
 		}
-		if usage != key.EncryptDecrypt {
+		if options.Usage != key.EncryptDecrypt {
 			return nil, UnsupportedOperationException("Bad KeyUsage")
 		}
 
-		aesKey, err := key.NewAES(persistPath, usage, keyId, tags)
-		if err != nil {
-			return nil, KMSInternalException(err.Error())
-		}
-		k.keys[keyId] = aesKey
+		newKey, err = key.NewAES(options)
 	case "HMAC_224", "HMAC_256", "HMAC_384", "HMAC_512":
 		if usage != key.GenerateVerifyMAC {
 			return nil, UnsupportedOperationException("Bad KeyUsage")
 		}
 		bytes, _ := strconv.Atoi(keySpec[4:])
-		macKey, err := key.NewHMAC(persistPath, usage, bytes, keyId, tags)
-		if err != nil {
-			return nil, KMSInternalException(err.Error())
-		}
-		k.keys[keyId] = macKey
+		newKey, err = key.NewHMAC(options, bytes)
 	case "RSA_2048", "RSA_3072", "RSA_4096":
 		if usage != key.EncryptDecrypt && usage != key.SignVerify {
 			return nil, UnsupportedOperationException("Bad KeyUsage")
 		}
 
 		bits, _ := strconv.Atoi(keySpec[4:])
-		rsaKey, err := key.NewRSA(persistPath, usage, bits, keyId, tags)
-		if err != nil {
-			return nil, KMSInternalException(err.Error())
-		}
-		k.keys[keyId] = rsaKey
+		newKey, err = key.NewRSA(options, bits)
 	case "ECC_NIST_P256", "ECC_NIST_P384", "ECC_NIST_P521":
 		return nil, UnsupportedOperationException("")
 	default:
 		// "ECC_SECG_P256K1", "SM2":
 		return nil, UnsupportedOperationException("")
 	}
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
+	k.keys[keyId] = newKey
 
 	return &CreateKeyOutput{
-		KeyMetadata: APIKeyMetadata{
-			Arn:   k.arnGenerator.Generate("kms", "key", keyId),
-			KeyId: keyId,
-		},
+		KeyMetadata: k.toAPI(newKey),
 	}, nil
+}
+
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_DescribeKey.html
+func (k *KMS) DescribeKey(input DescribeKeyInput) (*DescribeKeyOutput, *awserrors.Error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	key := k.lockedGetKey(input.KeyId)
+	if key == nil {
+		return nil, NotFoundException("")
+	}
+
+	return &DescribeKeyOutput{
+		KeyMetadata: k.toAPI(key),
+	}, nil
+}
+
+// TODO:
+// DescribeKey
+// Persist Aliases correctly
+func (k *KMS) toAPI(key *key.Key) APIKeyMetadata {
+	return APIKeyMetadata{
+		Arn:         k.arnGenerator.Generate("kms", "key", key.Id()),
+		Enabled:     key.Enabled(),
+		Description: key.Description(),
+		KeyId:       key.Id(),
+	}
 }
 
 func (k *KMS) lockedGetKey(keyId string) *key.Key {

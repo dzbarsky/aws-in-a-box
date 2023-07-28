@@ -12,6 +12,14 @@ type CreateKeyOutput struct {
 	KeyMetadata APIKeyMetadata
 }
 
+type DescribeKeyInput struct {
+	KeyId string
+}
+
+type DescribeKeyOutput struct {
+	KeyMetadata APIKeyMetadata
+}
+
 type CreateAliasInput struct {
 	AliasName   string
 	TargetKeyId string
@@ -149,8 +157,10 @@ type DecryptOutput struct {
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_KeyMetadata.html
 type APIKeyMetadata struct {
-	Arn   string
-	KeyId string
+	Arn         string
+	Description string
+	Enabled     bool
+	KeyId       string
 }
 
 type DisableKeyInput struct {

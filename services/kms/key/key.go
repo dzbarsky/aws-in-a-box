@@ -37,11 +37,16 @@ type Key struct {
 	// If empty, no persistence
 	persistPath string
 
-	id      string
-	usage   Usage
-	enabled bool
-	tags    map[string]string
+	// immutable
+	id    string
+	usage Usage
 
+	// mutable
+	description string
+	enabled     bool
+	tags        map[string]string
+
+	// variants
 	aesKey  aesKey
 	rsaKey  rsaKey
 	hmacKey hmacKey
@@ -63,12 +68,21 @@ func (k Key) Usage() Usage {
 	return k.usage
 }
 
+func (k Key) Description() string {
+	return k.description
+}
+
 func (k *Key) Tags() map[string]string {
 	return maps.Clone(k.tags)
 }
 
 func (k *Key) SetEnabled(enabled bool) error {
 	k.enabled = enabled
+	return k.persist()
+}
+
+func (k *Key) SetDescription(description string) error {
+	k.description = description
 	return k.persist()
 }
 
@@ -99,36 +113,52 @@ func (k *Key) persist() error {
 }
 
 type serializableKey struct {
-	Id      string
-	Usage   Usage
-	Enabled bool
-	Tags    map[string]string
-	AesKeys [][32]byte
-	RsaKey  *rsa.PrivateKey
-	HmacKey []byte
+	Id          string
+	Usage       Usage
+	Enabled     bool
+	Description string
+	Tags        map[string]string
+	AesKeys     [][32]byte
+	RsaKey      *rsa.PrivateKey
+	HmacKey     []byte
 }
 
 func (k *Key) serialize() ([]byte, error) {
 	return json.Marshal(serializableKey{
-		Id:      k.id,
-		Usage:   k.usage,
-		Enabled: k.enabled,
-		Tags:    k.tags,
-		AesKeys: k.aesKey.backingKeys,
-		RsaKey:  k.rsaKey.key,
-		HmacKey: k.hmacKey.key,
+		Id:          k.id,
+		Usage:       k.usage,
+		Enabled:     k.enabled,
+		Description: k.description,
+		Tags:        k.tags,
+		AesKeys:     k.aesKey.backingKeys,
+		RsaKey:      k.rsaKey.key,
+		HmacKey:     k.hmacKey.key,
 	})
 }
 
-func NewAES(persistPath string, usage Usage, id string, tags map[string]string) (*Key, error) {
-	k := &Key{
-		persistPath: persistPath,
-		id:          id,
-		usage:       usage,
-		tags:        tags,
+type Options struct {
+	PersistPath string
+	Usage       Usage
+	Id          string
+	Description string
+	Tags        map[string]string
+}
+
+func (o Options) makeKey() *Key {
+	return &Key{
+		persistPath: o.PersistPath,
+		id:          o.Id,
+		usage:       o.Usage,
+		description: o.Description,
+		tags:        o.Tags,
 		enabled:     true,
-		aesKey:      newAesKey(),
 	}
+}
+
+func NewAES(options Options) (*Key, error) {
+	k := options.makeKey()
+	k.aesKey = newAesKey()
+
 	err := k.persist()
 	if err != nil {
 		return nil, err
@@ -136,20 +166,15 @@ func NewAES(persistPath string, usage Usage, id string, tags map[string]string) 
 	return k, nil
 }
 
-func NewRSA(persistPath string, usage Usage, bits int, id string, tags map[string]string) (*Key, error) {
+func NewRSA(options Options, bits int) (*Key, error) {
 	rsaKey, err := newRsaKey(bits)
 	if err != nil {
 		return nil, err
 	}
 
-	k := &Key{
-		persistPath: persistPath,
-		id:          id,
-		usage:       usage,
-		tags:        tags,
-		enabled:     true,
-		rsaKey:      rsaKey,
-	}
+	k := options.makeKey()
+	k.rsaKey = rsaKey
+
 	err = k.persist()
 	if err != nil {
 		return nil, err
@@ -157,15 +182,10 @@ func NewRSA(persistPath string, usage Usage, bits int, id string, tags map[strin
 	return k, nil
 }
 
-func NewHMAC(persistPath string, usage Usage, bytes int, id string, tags map[string]string) (*Key, error) {
-	k := &Key{
-		persistPath: persistPath,
-		id:          id,
-		usage:       usage,
-		tags:        tags,
-		enabled:     true,
-		hmacKey:     newHmacKey(bytes),
-	}
+func NewHMAC(options Options, bytes int) (*Key, error) {
+	k := options.makeKey()
+	k.hmacKey = newHmacKey(bytes)
+
 	err := k.persist()
 	if err != nil {
 		return nil, err
@@ -199,13 +219,14 @@ func newFromData(data []byte) (*Key, error) {
 	}
 
 	return &Key{
-		id:      key.Id,
-		enabled: key.Enabled,
-		usage:   key.Usage,
-		tags:    key.Tags,
-		aesKey:  aesKey{backingKeys: key.AesKeys},
-		rsaKey:  rsaKey{key: key.RsaKey},
-		hmacKey: hmacKey{key: key.HmacKey},
+		id:          key.Id,
+		enabled:     key.Enabled,
+		usage:       key.Usage,
+		tags:        key.Tags,
+		description: key.Description,
+		aesKey:      aesKey{backingKeys: key.AesKeys},
+		rsaKey:      rsaKey{key: key.RsaKey},
+		hmacKey:     hmacKey{key: key.HmacKey},
 	}, nil
 }
 

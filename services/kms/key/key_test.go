@@ -13,10 +13,17 @@ func TestSerialization(t *testing.T) {
 		return key
 	}
 
+	options := Options{
+		// Not correct, but fine for this test
+		Usage:       EncryptDecrypt,
+		Id:          "keyId",
+		Description: "",
+		Tags:        map[string]string{"tag": "value"},
+	}
 	tests := map[string]*Key{
-		"AES":  must(NewAES("", EncryptDecrypt, "keyId", map[string]string{"tag": "value"})),
-		"RSA":  must(NewRSA("", SignVerify, 2048, "keyId", map[string]string{"tag": "value"})),
-		"HMAC": must(NewHMAC("", GenerateVerifyMAC, 256, "keyId", map[string]string{"tag": "value"})),
+		"AES":  must(NewAES(options)),
+		"RSA":  must(NewRSA(options, 2048)),
+		"HMAC": must(NewHMAC(options, 256)),
 	}
 
 	for name, key := range tests {

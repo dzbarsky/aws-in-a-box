@@ -2,10 +2,15 @@ package key
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"hash"
 	"os"
 
@@ -31,6 +36,9 @@ const (
 	RsaPkcs1SHA256 SigningAlgorithm = "RSASSA_PKCS1_V1_5_SHA_256"
 	RsaPkcs1SHA384 SigningAlgorithm = "RSASSA_PKCS1_V1_5_SHA_384"
 	RsaPkcs1SHA512 SigningAlgorithm = "RSASSA_PKCS1_V1_5_SHA_512"
+	EcdsaSHA256    SigningAlgorithm = "ECDSA_SHA_256"
+	EcdsaSHA384    SigningAlgorithm = "ECDSA_SHA_384"
+	EcdsaSHA512    SigningAlgorithm = "ECDSA_SHA_512"
 )
 
 type Key struct {
@@ -50,6 +58,7 @@ type Key struct {
 	aesKey  aesKey
 	rsaKey  rsaKey
 	hmacKey hmacKey
+	eccKey  eccKey
 }
 
 func (k Key) IsAES() bool {
@@ -64,8 +73,8 @@ func (k Key) IsHMAC() bool {
 	return len(k.hmacKey.key) > 0
 }
 
-func (k Key) IsSymmetric() bool {
-	return k.IsAES() || k.IsHMAC()
+func (k Key) IsECC() bool {
+	return k.eccKey.key != nil
 }
 
 func (k Key) Id() string {
@@ -133,6 +142,40 @@ type serializableKey struct {
 	AesKeys     [][32]byte
 	RsaKey      *rsa.PrivateKey
 	HmacKey     []byte
+	EccKey      serializableEccKey
+}
+
+// ecdsa Keys don't serialize nicely, see https://github.com/golang/go/issues/33564
+type serializableEccKey struct {
+	key *ecdsa.PrivateKey
+}
+
+func (s serializableEccKey) MarshalJSON() ([]byte, error) {
+	if s.key == nil {
+		return []byte("null"), nil
+	}
+	data, err := x509.MarshalPKCS8PrivateKey(s.key)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(`"` + base64.RawStdEncoding.EncodeToString(data) + `"`), nil
+}
+
+func (s *serializableEccKey) UnmarshalJSON(b64Data []byte) error {
+	if string(b64Data) == "null" {
+		return nil
+	}
+	data, err := base64.RawStdEncoding.DecodeString(string(b64Data[1 : len(b64Data)-1]))
+	if err != nil {
+		return err
+	}
+
+	key, err := x509.ParsePKCS8PrivateKey(data)
+	if err != nil {
+		return err
+	}
+	s.key = key.(*ecdsa.PrivateKey)
+	return nil
 }
 
 func (k *Key) serialize() ([]byte, error) {
@@ -145,6 +188,7 @@ func (k *Key) serialize() ([]byte, error) {
 		AesKeys:     k.aesKey.backingKeys,
 		RsaKey:      k.rsaKey.key,
 		HmacKey:     k.hmacKey.key,
+		EccKey:      serializableEccKey{k.eccKey.key},
 	})
 }
 
@@ -205,6 +249,22 @@ func NewHMAC(options Options, bytes int) (*Key, error) {
 	return k, nil
 }
 
+func NewECC(options Options, curve elliptic.Curve) (*Key, error) {
+	eccKey, err := newECCKey(curve)
+	if err != nil {
+		return nil, err
+	}
+
+	k := options.makeKey()
+	k.eccKey = eccKey
+
+	err = k.persist()
+	if err != nil {
+		return nil, err
+	}
+	return k, nil
+}
+
 func NewFromFile(path string) (*Key, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -239,6 +299,7 @@ func newFromData(data []byte) (*Key, error) {
 		aesKey:      aesKey{backingKeys: key.AesKeys},
 		rsaKey:      rsaKey{key: key.RsaKey},
 		hmacKey:     hmacKey{key: key.HmacKey},
+		eccKey:      eccKey{key: key.EccKey.key},
 	}, nil
 }
 
@@ -249,7 +310,7 @@ func (k *Key) Encrypt(
 ) (
 	[]byte, error,
 ) {
-	if k.rsaKey.key != nil {
+	if k.IsRSA() {
 		return k.rsaKey.Encrypt(plaintext, algorithm)
 	}
 	ciphertext, version, err := k.aesKey.Encrypt(plaintext, context)
@@ -268,7 +329,7 @@ func (k *Key) Decrypt(
 ) (
 	[]byte, error,
 ) {
-	if k.rsaKey.key != nil {
+	if k.IsRSA() {
 		return k.rsaKey.Decrypt(data, algorithm)
 	}
 	version, data := binary.LittleEndian.Uint32(data[:4]), data[4:]
@@ -281,15 +342,27 @@ func (k *Key) Sign(
 ) (
 	[]byte, error,
 ) {
-	return k.rsaKey.Sign(digest, algorithm)
+	if k.IsRSA() {
+		return k.rsaKey.Sign(digest, algorithm)
+	} else {
+		return k.eccKey.Sign(digest)
+	}
 }
 
 func (k *Key) Verify(
 	digest []byte,
 	signature []byte,
 	algorithm SigningAlgorithm,
-) error {
-	return k.rsaKey.Verify(digest, signature, algorithm)
+) (bool, error) {
+	if k.IsRSA() {
+		err := k.rsaKey.Verify(digest, signature, algorithm)
+		if errors.Is(err, rsa.ErrVerification) {
+			return false, nil
+		}
+		return true, err
+	} else {
+		return k.eccKey.Verify(digest, signature), nil
+	}
 }
 
 func (k *Key) GenerateMac(

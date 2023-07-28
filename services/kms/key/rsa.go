@@ -6,7 +6,6 @@ import (
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
-	"crypto/sha512"
 	"errors"
 	"hash"
 )
@@ -24,19 +23,6 @@ func newRsaKey(bits int) (rsaKey, error) {
 	return rsaKey{
 		key: pkey,
 	}, nil
-}
-
-func HasherForAlgorithm(algorithm SigningAlgorithm) (hash.Hash, error) {
-	switch algorithm {
-	case RsaPssSHA256, RsaPkcs1SHA256:
-		return sha256.New(), nil
-	case RsaPssSHA384, RsaPkcs1SHA384:
-		return sha512.New384(), nil
-	case RsaPssSHA512, RsaPkcs1SHA512:
-		return sha512.New(), nil
-	default:
-		return nil, InvalidSigningAlgorithm{}
-	}
 }
 
 func (k rsaKey) Sign(

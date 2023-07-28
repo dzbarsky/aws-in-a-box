@@ -1,6 +1,7 @@
 package key
 
 import (
+	"crypto/elliptic"
 	"reflect"
 	"testing"
 )
@@ -24,6 +25,7 @@ func TestSerialization(t *testing.T) {
 		"AES":  must(NewAES(options)),
 		"RSA":  must(NewRSA(options, 2048)),
 		"HMAC": must(NewHMAC(options, 256)),
+		"ECC":  must(NewECC(options, elliptic.P256())),
 	}
 
 	for name, key := range tests {

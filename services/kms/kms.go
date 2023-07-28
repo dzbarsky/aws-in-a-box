@@ -11,7 +11,6 @@ import (
 	"crypto/sha512"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"hash"
 	"os"
 	"path/filepath"
@@ -173,8 +172,21 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 
 		bits, _ := strconv.Atoi(keySpec[4:])
 		newKey, err = key.NewRSA(options, bits)
-	case "ECC_NIST_P256", "ECC_NIST_P384", "ECC_NIST_P521":
-		return nil, UnsupportedOperationException("")
+	case "ECC_NIST_P256":
+		if usage != key.SignVerify {
+			return nil, UnsupportedOperationException("Bad KeyUsage")
+		}
+		newKey, err = key.NewECC(options, elliptic.P256())
+	case "ECC_NIST_P384":
+		if usage != key.SignVerify {
+			return nil, UnsupportedOperationException("Bad KeyUsage")
+		}
+		newKey, err = key.NewECC(options, elliptic.P384())
+	case "ECC_NIST_P521":
+		if usage != key.SignVerify {
+			return nil, UnsupportedOperationException("Bad KeyUsage")
+		}
+		newKey, err = key.NewECC(options, elliptic.P521())
 	default:
 		// "ECC_SECG_P256K1", "SM2":
 		return nil, UnsupportedOperationException("")
@@ -277,8 +289,28 @@ func (k *KMS) CreateAlias(input CreateAliasInput) (*CreateAliasOutput, *awserror
 	return nil, nil
 }
 
+func hasherForAlgorithm(algorithm key.SigningAlgorithm) (hash.Hash, *awserrors.Error) {
+	switch algorithm {
+	case key.RsaPssSHA256, key.RsaPkcs1SHA256, key.EcdsaSHA256:
+		return sha256.New(), nil
+	case key.RsaPssSHA384, key.RsaPkcs1SHA384, key.EcdsaSHA384:
+		return sha512.New384(), nil
+	case key.RsaPssSHA512, key.RsaPkcs1SHA512, key.EcdsaSHA512:
+		return sha512.New(), nil
+	default:
+		return nil, UnsupportedOperationException("Unsupported SigningAlgorithm")
+	}
+}
+
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_Sign.html
 func (k *KMS) Sign(input SignInput) (*SignOutput, *awserrors.Error) {
+	if len(input.Message) > 4096 {
+		return nil, ValidationError("Message too long; use digest")
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
 	signingKey := k.lockedGetKey(input.KeyId)
 	if signingKey == nil {
 		return nil, NotFoundException("")
@@ -292,9 +324,9 @@ func (k *KMS) Sign(input SignInput) (*SignOutput, *awserrors.Error) {
 		return nil, UnsupportedOperationException("")
 	}
 
-	hasher, err := key.HasherForAlgorithm(key.SigningAlgorithm(input.SigningAlgorithm))
-	if errors.Is(err, key.InvalidSigningAlgorithm{}) {
-		return nil, UnsupportedOperationException("Unsupported SigningAlgorithm")
+	hasher, awserr := hasherForAlgorithm(key.SigningAlgorithm(input.SigningAlgorithm))
+	if awserr != nil {
+		return nil, awserr
 	}
 
 	var digest []byte
@@ -321,6 +353,13 @@ func (k *KMS) Sign(input SignInput) (*SignOutput, *awserrors.Error) {
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_Verify.html
 func (k *KMS) Verify(input VerifyInput) (*VerifyOutput, *awserrors.Error) {
+	if len(input.Message) > 4096 {
+		return nil, ValidationError("Message too long; use digest")
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
 	signingKey := k.lockedGetKey(input.KeyId)
 	if signingKey == nil {
 		return nil, NotFoundException("")
@@ -334,9 +373,9 @@ func (k *KMS) Verify(input VerifyInput) (*VerifyOutput, *awserrors.Error) {
 		return nil, UnsupportedOperationException("")
 	}
 
-	hasher, err := key.HasherForAlgorithm(key.SigningAlgorithm(input.SigningAlgorithm))
-	if errors.Is(err, key.InvalidSigningAlgorithm{}) {
-		return nil, UnsupportedOperationException("Unsupported SigningAlgorithm")
+	hasher, awserr := hasherForAlgorithm(key.SigningAlgorithm(input.SigningAlgorithm))
+	if awserr != nil {
+		return nil, awserr
 	}
 
 	var digest []byte
@@ -349,14 +388,9 @@ func (k *KMS) Verify(input VerifyInput) (*VerifyOutput, *awserrors.Error) {
 		return nil, ValidationError("Bad MessageType")
 	}
 
-	valid := true
-	err = signingKey.Verify(digest, input.Signature, key.SigningAlgorithm(input.SigningAlgorithm))
+	valid, err := signingKey.Verify(digest, input.Signature, key.SigningAlgorithm(input.SigningAlgorithm))
 	if err != nil {
-		if errors.Is(err, rsa.ErrVerification) {
-			valid = false
-		} else {
-			return nil, KMSInternalException("")
-		}
+		return nil, KMSInternalException("")
 	}
 
 	return &VerifyOutput{
@@ -434,7 +468,7 @@ func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (*GenerateDataKeyOutpu
 		return nil, DisabledException("")
 	}
 
-	if !key.IsSymmetric() {
+	if !key.IsAES() {
 		return nil, UnsupportedOperationException("")
 	}
 

@@ -11,7 +11,8 @@ Currently supported services (see below for full support details):
 Aws-in-a-box runs on HTTP (not HTTPS) but supports HTTP2 upgrade with h2c (HTTP without TLS).
 
 ## Why use this over localstack?
-- Download and run a single 7MB file (statically-linked native binary). No interpereter/runtime hell. (There are also 3MB [docker images](https://hub.docker.com/r/dzbarsky/aws-in-a-box/tags) if you prefer)
+- High-performance; no overhead from docker or proxies
+- Single statically-linked 7MB native binary. No interpereter/runtime hell. (There are also 3MB compressed [docker images](https://hub.docker.com/r/dzbarsky/aws-in-a-box/tags) if you prefer)
 - Simple persistence scheme using atomic file writes. When using the native binary, no more broken persistent docker volumes
 
 <br>
@@ -124,4 +125,117 @@ KMS data is fully persisted.
 | UpdatePrimaryRegion                 | ❌ Unsupported  |                                       |
 | Verify                              | ✅ Supported    |                                       |
 | VerifyMac                           | ✅ Supported    |                                       |
+</details>
+
+<br>
+
+## S3 Support
+Most common operations of S3 are implemented. Remaining work:
+- Versioning
+- A bunch of metadata/usage APIs
+- Policy/ACL is missing
+
+S3 blocks are persisted, but metadata is not. This will be fixed in the future.
+<details>
+<summary>Click to expand the detailed support table</summary>
+  
+| API                                         | Support Status | Caveats/Notes                      |
+|---------------------------------------------|----------------|------------------------------------|
+| AbortMultipartUpload                        | ✅ Supported    |                                    |
+| CompleteMultipartUpload                     | ✅ Supported    |                                    |
+| CopyObject                                  | ✅ Supported    |                                    |
+| CreateBucket                                | ✅ Supported    |                                    |
+| CreateMultipartUpload                       | ✅ Supported    |                                    |
+| DeleteBucket                                | ✅ Supported    |                                    |
+| DeleteBucketAnalyticsConfiguration          | ❌ Unsupported  |                                    |
+| DeleteBucketCors                            | ❌ Unsupported  |                                    |
+| DeleteBucketEncryption                      | ❌ Unsupported  |                                    |
+| DeleteBucketIntelligentTieringConfiguration | ❌ Unsupported  |                                    |
+| DeleteBucketInventoryConfiguration          | ❌ Unsupported  |                                    |
+| DeleteBucketLifecycle                       | ❌ Unsupported  |                                    |
+| DeleteBucketMetricsConfiguration            | ❌ Unsupported  |                                    |
+| DeleteBucketOwnershipControls               | ❌ Unsupported  |                                    |
+| DeleteBucketPolicy                          | ❌ Unsupported  |                                    |
+| DeleteBucketReplication                     | ❌ Unsupported  |                                    |
+| DeleteBucketTagging                         | ✅ Supported    |                                    |
+| DeleteBucketWebsite                         | ❌ Unsupported  |                                    |
+| DeleteObject                                | ✅ Supported    |                                    |
+| DeleteObjects                               | ✅ Supported    |                                    |
+| DeleteObjectTagging                         | ✅ Supported    |                                    |
+| DeletePublicAccessBlock                     | ❌ Unsupported  |                                    |
+| GetBucketAccelerateConfiguration            | ❌ Unsupported  |                                    |
+| GetBucketAcl                                | ❌ Unsupported  |                                    |
+| GetBucketAnalyticsConfiguration             | ❌ Unsupported  |                                    |
+| GetBucketCors                               | ❌ Unsupported  |                                    |
+| GetBucketEncryption                         | ❌ Unsupported  |                                    |
+| GetBucketIntelligentTieringConfiguration    | ❌ Unsupported  |                                    |
+| GetBucketInventoryConfiguration             | ❌ Unsupported  |                                    |
+| GetBucketLifecycle                          | ❌ Unsupported  | Discouraged by AWS                 |
+| GetBucketLifecycleConfiguration             | ❌ Unsupported  |                                    |
+| GetBucketLocation                           | ❌ Unsupported  |                                    |
+| GetBucketLogging                            | ❌ Unsupported  |                                    |
+| GetBucketMetricsConfiguration               | ❌ Unsupported  |                                    |
+| GetBucketNotification                       | ❌ Unsupported  | Discouraged by AWS. no longer used |
+| GetBucketNotificationConfiguration          | ❌ Unsupported  |                                    |
+| GetBucketOwnershipControls                  | ❌ Unsupported  |                                    |
+| GetBucketPolicy                             | ❌ Unsupported  |                                    |
+| GetBucketPolicyStatus                       | ❌ Unsupported  |                                    |
+| GetBucketReplication                        | ❌ Unsupported  |                                    |
+| GetBucketRequestPayment                     | ❌ Unsupported  |                                    |
+| GetBucketTagging                            | ✅ Supported    |                                    |
+| GetBucketVersioning                         | ❌ Unsupported  |                                    |
+| GetBucketWebsite                            | ❌ Unsupported  |                                    |
+| GetObject                                   | ✅ Supported    |                                    |
+| GetObjectAcl                                | ❌ Unsupported  |                                    |
+| GetObjectAttributes                         | ❌ Unsupported  |                                    |
+| GetObjectLegalHold                          | ❌ Unsupported  |                                    |
+| GetObjectLockConfiguration                  | ❌ Unsupported  |                                    |
+| GetObjectRetention                          | ❌ Unsupported  |                                    |
+| GetObjectTagging                            | ✅ Supported    |                                    |
+| GetObjectTorrent                            | ❌ Unsupported  |                                    |
+| GetPublicAccessBlock                        | ❌ Unsupported  |                                    |
+| HeadBucket                                  | ✅ Supported    |                                    |
+| HeadObject                                  | ✅ Supported    |                                    |
+| ListBucketAnalyticsConfigurations           | ❌ Unsupported  |                                    |
+| ListBucketIntelligentTieringConfigurations  | ❌ Unsupported  |                                    |
+| ListBucketInventoryConfigurations           | ❌ Unsupported  |                                    |
+| ListBucketMetricsConfigurations             | ❌ Unsupported  |                                    |
+| ListBuckets                                 | ❌ Unsupported  | implement me!                      |
+| ListMultipartUploads                        | ❌ Unsupported  | implement me!                      |
+| ListObjects                                 | ❌ Unsupported  | implement me!                      |
+| ListObjectsV2                               | ❌ Unsupported  | implement me!                      |
+| ListObjectVersions                          | ❌ Unsupported  |                                    |
+| ListParts                                   | ✅ Supported    |                                    |
+| PutBucketAccelerateConfiguration            | ❌ Unsupported  |                                    |
+| PutBucketAcl                                | ❌ Unsupported  |                                    |
+| PutBucketAnalyticsConfiguration             | ❌ Unsupported  |                                    |
+| PutBucketCors                               | ❌ Unsupported  |                                    |
+| PutBucketEncryption                         | ❌ Unsupported  |                                    |
+| PutBucketIntelligentTieringConfiguration    | ❌ Unsupported  |                                    |
+| PutBucketInventoryConfiguration             | ❌ Unsupported  |                                    |
+| PutBucketLifecycle                          | ❌ Unsupported  | Deprecated                         |
+| PutBucketLifecycleConfiguration             | ❌ Unsupported  |                                    |
+| PutBucketLogging                            | ❌ Unsupported  |                                    |
+| PutBucketMetricsConfiguration               | ❌ Unsupported  |                                    |
+| PutBucketNotification                       | ❌ Unsupported  | No longer used                     |
+| PutBucketNotificationConfiguration          | ❌ Unsupported  |                                    |
+| PutBucketOwnershipControls                  | ❌ Unsupported  |                                    |
+| PutBucketPolicy                             | ❌ Unsupported  |                                    |
+| PutBucketReplication                        | ❌ Unsupported  |                                    |
+| PutBucketRequestPayment                     | ❌ Unsupported  |                                    |
+| PutBucketTagging                            | ✅ Supported    |                                    |
+| PutBucketVersioning                         | ❌ Unsupported  |                                    |
+| PutBucketWebsite                            | ❌ Unsupported  |                                    |
+| PutObject                                   | ✅ Supported    |                                    |
+| PutObjectAcl                                | ❌ Unsupported  |                                    |
+| PutObjectLegalHold                          | ❌ Unsupported  |                                    |
+| PutObjectLockConfiguration                  | ❌ Unsupported  |                                    |
+| PutObjectRetention                          | ❌ Unsupported  |                                    |
+| PutObjectTagging                            | ✅ Supported    |                                    |
+| PutPublicAccessBlock                        | ❌ Unsupported  |                                    |
+| RestoreObject                               | ❌ Unsupported  |                                    |
+| SelectObjectContent                         | ❌ Unsupported  |                                    |
+| UploadPart                                  | ✅ Supported    |                                    |
+| UploadPartCopy                              | ❌ Unsupported  |                                    |
+| WriteGetObjectResponse                      | ❌ Unsupported  |                                    |
 </details>

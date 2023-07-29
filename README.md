@@ -120,7 +120,7 @@ KMS data is fully persisted.
 | UpdateAlias                         | ✅ Supported    |                                       |
 | UpdateCustomKeyStore                | ❌ Unsupported  |                                       |
 | UntagResource                       | ✅ Supported    |                                       |
-| UpdateKeyDescription                | ✅ Supported    | need to implement, but its easy       |
+| UpdateKeyDescription                | ✅ Supported    |                                       |
 | UpdatePrimaryRegion                 | ❌ Unsupported  |                                       |
 | Verify                              | ✅ Supported    |                                       |
 | VerifyMac                           | ✅ Supported    |                                       |

@@ -30,6 +30,7 @@ func (k *KMS) RegisterHTTPHandlers(logger *slog.Logger, methodRegistry http.Regi
 	http.Register(logger, methodRegistry, service, "TagResource", k.TagResource)
 	http.Register(logger, methodRegistry, service, "UntagResource", k.UntagResource)
 	http.Register(logger, methodRegistry, service, "UpdateAlias", k.UpdateAlias)
+	http.Register(logger, methodRegistry, service, "UpdateKeyDescription", k.UpdateKeyDescription)
 	http.Register(logger, methodRegistry, service, "Verify", k.Verify)
 	http.Register(logger, methodRegistry, service, "VerifyMac", k.VerifyMac)
 }

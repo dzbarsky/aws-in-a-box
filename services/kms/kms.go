@@ -821,6 +821,23 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 	}, nil
 }
 
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_UpdateKeyDescription.html
+func (k *KMS) UpdateKeyDescription(input UpdateKeyDescriptionInput) (*UpdateKeyDescriptionOutput, *awserrors.Error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	key := k.lockedGetKey(input.KeyId)
+	if key == nil {
+		return nil, NotFoundException("")
+	}
+
+	err := key.SetDescription(input.Description)
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
+	return nil, nil
+}
+
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_DisableKey.html
 func (k *KMS) DisableKey(input DisableKeyInput) (*DisableKeyOutput, *awserrors.Error) {
 	k.mu.Lock()

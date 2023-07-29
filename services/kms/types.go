@@ -194,6 +194,13 @@ type APIKeyMetadata struct {
 	KeyId       string
 }
 
+type UpdateKeyDescriptionInput struct {
+	KeyId       string
+	Description string
+}
+
+type UpdateKeyDescriptionOutput struct{}
+
 type DisableKeyInput struct {
 	KeyId string
 }

@@ -77,6 +77,10 @@ func (k Key) IsECC() bool {
 	return k.eccKey.key != nil
 }
 
+func (k Key) IsAsymmetric() bool {
+	return k.IsRSA() || k.IsECC()
+}
+
 func (k Key) Id() string {
 	return k.id
 }

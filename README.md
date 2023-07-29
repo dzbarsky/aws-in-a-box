@@ -92,8 +92,8 @@ KMS data is fully persisted.
 | EnableKeyRotation                   | ❌ Unsupported  |                                       |
 | Encrypt                             | ✅ Supported    |                                       |
 | GenerateDataKey                     | ✅ Supported    |                                       |
-| GenerateDataKeyPair                 | ✅ Supported    |                                       |
-| GenerateDataKeyPairWithoutPlaintext | ✅ Supported    |                                       |
+| GenerateDataKeyPair                 | ✅ Supported    | ECC_SECG_P256K1 not supported         |
+| GenerateDataKeyPairWithoutPlaintext | ✅ Supported    | ECC_SECG_P256K1 not supported         |
 | GenerateDataKeyWithoutPlaintext     | ✅ Supported    |                                       |
 | GenerateMac                         | ✅ Supported    |                                       |
 | GenerateRandom                      | ✅ Supported    |                                       |
@@ -117,7 +117,7 @@ KMS data is fully persisted.
 | Sign                                | ✅ Supported    |                                       |
 | TagResource                         | ✅ Supported    |                                       |
 | UntagResource                       | ✅ Supported    |                                       |
-| UpdateAlias                         | ✅ Supported    | need to implement, but its easy       |
+| UpdateAlias                         | ✅ Supported    |                                       |
 | UpdateCustomKeyStore                | ❌ Unsupported  |                                       |
 | UntagResource                       | ✅ Supported    |                                       |
 | UpdateKeyDescription                | ✅ Supported    | need to implement, but its easy       |

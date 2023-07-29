@@ -103,6 +103,10 @@ func New(options Options) (*KMS, error) {
 }
 
 func (k *KMS) persistAliases() error {
+	if k.persistDir == "" {
+		return nil
+	}
+
 	data, err := json.Marshal(k.aliases)
 	if err != nil {
 		return err
@@ -286,6 +290,12 @@ func (k *KMS) CreateAlias(input CreateAliasInput) (*CreateAliasOutput, *awserror
 	}
 
 	k.aliases[aliasName] = key.Id()
+
+	err := k.persistAliases()
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
+
 	return nil, nil
 }
 
@@ -400,6 +410,44 @@ func (k *KMS) Verify(input VerifyInput) (*VerifyOutput, *awserrors.Error) {
 	}, nil
 }
 
+// https://docs.aws.amazon.com/kms/latest/APIReference/API_UpdateAlias.html
+func (k *KMS) UpdateAlias(input UpdateAliasInput) (*UpdateAliasOutput, *awserrors.Error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	// TODO: handle alias not starting with "alias/"
+	aliasName := strings.TrimPrefix(input.AliasName, "alias/")
+	currentKeyId, ok := k.aliases[aliasName]
+	if !ok {
+		return nil, NotFoundException("")
+	}
+	currentKey := k.keys[currentKeyId]
+
+	targetKey := k.lockedGetKey(input.TargetKeyId)
+	if targetKey == nil {
+		return nil, NotFoundException("")
+	}
+
+	if currentKey.Usage() != targetKey.Usage() {
+		return nil, UnsupportedOperationException("Usage must match")
+	}
+
+	if currentKey.IsAES() != targetKey.IsAES() ||
+		currentKey.IsHMAC() != targetKey.IsHMAC() ||
+		currentKey.IsAsymmetric() != targetKey.IsAsymmetric() {
+		return nil, UnsupportedOperationException("Key type must match")
+	}
+
+	k.aliases[aliasName] = targetKey.Id()
+
+	err := k.persistAliases()
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
+
+	return nil, nil
+}
+
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_DeleteAlias.html
 func (k *KMS) DeleteAlias(input DeleteAliasInput) (*DeleteAliasOutput, *awserrors.Error) {
 	k.mu.Lock()
@@ -412,6 +460,12 @@ func (k *KMS) DeleteAlias(input DeleteAliasInput) (*DeleteAliasOutput, *awserror
 	}
 
 	delete(k.aliases, aliasName)
+
+	err := k.persistAliases()
+	if err != nil {
+		return nil, KMSInternalException(err.Error())
+	}
+
 	return nil, nil
 }
 

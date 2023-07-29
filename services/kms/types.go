@@ -33,6 +33,13 @@ type DeleteAliasInput struct {
 
 type DeleteAliasOutput struct{}
 
+type UpdateAliasInput struct {
+	AliasName   string
+	TargetKeyId string
+}
+
+type UpdateAliasOutput struct{}
+
 type SignInput struct {
 	KeyId            string
 	Message          []byte

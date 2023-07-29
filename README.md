@@ -2,6 +2,14 @@
 
 This project is an emulator for several AWS services, à la Localstack. README in progress!
 
+Currently supported services (see below for full support details):
+- [DynamoDB](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/Welcome.html) - highly experimental, only enough for Kinesis Client Library to work. Not recommended to use!
+- [Kinesis](https://docs.aws.amazon.com/kinesis/latest/APIReference/Welcome.html)
+- [KMS](https://docs.aws.amazon.com/kms/latest/APIReference/Welcome.html)
+- [S3](https://docs.aws.amazon.com/AmazonS3/latest/API/Welcome.html)
+
+Aws-in-a-box runs on HTTP (not HTTPS) but supports HTTP2 upgrade with h2c (HTTP without TLS).
+
 ## Why use this over localstack?
 - Download and run a single 7MB file (statically-linked native binary). No interpereter/runtime hell. (There are also 3MB [docker images](https://hub.docker.com/r/dzbarsky/aws-in-a-box/tags) if you prefer)
 - Simple persistence scheme using atomic file writes. When using the native binary, no more broken persistent docker volumes

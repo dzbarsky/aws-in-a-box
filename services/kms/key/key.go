@@ -7,7 +7,6 @@ import (
 	"crypto/hmac"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -146,44 +145,14 @@ type serializableKey struct {
 	AesKeys     [][32]byte
 	RsaKey      *rsa.PrivateKey
 	HmacKey     []byte
-	EccKey      serializableEccKey
-}
-
-// ecdsa Keys don't serialize nicely, see https://github.com/golang/go/issues/33564
-type serializableEccKey struct {
-	key *ecdsa.PrivateKey
-}
-
-func (s serializableEccKey) MarshalJSON() ([]byte, error) {
-	if s.key == nil {
-		return []byte("null"), nil
-	}
-	data, err := x509.MarshalPKCS8PrivateKey(s.key)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(`"` + base64.RawStdEncoding.EncodeToString(data) + `"`), nil
-}
-
-func (s *serializableEccKey) UnmarshalJSON(b64Data []byte) error {
-	if string(b64Data) == "null" {
-		return nil
-	}
-	data, err := base64.RawStdEncoding.DecodeString(string(b64Data[1 : len(b64Data)-1]))
-	if err != nil {
-		return err
-	}
-
-	key, err := x509.ParsePKCS8PrivateKey(data)
-	if err != nil {
-		return err
-	}
-	s.key = key.(*ecdsa.PrivateKey)
-	return nil
+	// Note: ecdsa Keys don't serialize nicely, see https://github.com/golang/go/issues/33564
+	// So instead, we use the PKCS8 format. Note that this means the parsed keys used the generic
+	// curves rather than the specialized ones, which is a performance hit.
+	EccKey []byte
 }
 
 func (k *Key) serialize() ([]byte, error) {
-	return json.Marshal(serializableKey{
+	key := serializableKey{
 		Id:          k.id,
 		Usage:       k.usage,
 		Enabled:     k.enabled,
@@ -192,8 +161,17 @@ func (k *Key) serialize() ([]byte, error) {
 		AesKeys:     k.aesKey.backingKeys,
 		RsaKey:      k.rsaKey.key,
 		HmacKey:     k.hmacKey.key,
-		EccKey:      serializableEccKey{k.eccKey.key},
-	})
+	}
+
+	if k.eccKey.key != nil {
+		data, err := x509.MarshalPKCS8PrivateKey(k.eccKey.key)
+		if err != nil {
+			return nil, err
+		}
+		key.EccKey = data
+	}
+
+	return json.Marshal(key)
 }
 
 type Options struct {
@@ -294,7 +272,7 @@ func newFromData(data []byte) (*Key, error) {
 		key.RsaKey.Precompute()
 	}
 
-	return &Key{
+	k := &Key{
 		id:          key.Id,
 		enabled:     key.Enabled,
 		usage:       key.Usage,
@@ -303,8 +281,17 @@ func newFromData(data []byte) (*Key, error) {
 		aesKey:      aesKey{backingKeys: key.AesKeys},
 		rsaKey:      rsaKey{key: key.RsaKey},
 		hmacKey:     hmacKey{key: key.HmacKey},
-		eccKey:      eccKey{key: key.EccKey.key},
-	}, nil
+	}
+
+	if len(key.EccKey) > 0 {
+		pkey, err := x509.ParsePKCS8PrivateKey(key.EccKey)
+		if err != nil {
+			return nil, err
+		}
+		k.eccKey = eccKey{pkey.(*ecdsa.PrivateKey)}
+	}
+
+	return k, nil
 }
 
 func (k *Key) Encrypt(

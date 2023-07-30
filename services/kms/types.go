@@ -196,6 +196,8 @@ type APIKeyMetadata struct {
 	Enabled              bool
 	EncryptionAlgorithms []types.EncryptionAlgorithm
 	KeyId                string
+	KeySpec              string
+	KeyUsage             types.Usage
 	MacAlgorithms        []string
 	SigningAlgorithms    []types.SigningAlgorithm
 }

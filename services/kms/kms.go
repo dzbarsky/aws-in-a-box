@@ -149,6 +149,7 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 		PersistPath: persistPath,
 		Usage:       usage,
 		Id:          keyId,
+		KeySpec:     input.KeySpec,
 		Description: input.Description,
 		Tags:        tags,
 	}
@@ -220,9 +221,11 @@ func (k *KMS) toAPI(key *key.Key) APIKeyMetadata {
 		Description:          key.Description(),
 		Enabled:              key.Enabled(),
 		EncryptionAlgorithms: key.EncryptionAlgorithms(),
+		KeyId:                key.Id(),
+		KeySpec:              key.KeySpec(),
+		KeyUsage:             key.Usage(),
 		MacAlgorithms:        key.MacAlgorithms(),
 		SigningAlgorithms:    key.SigningAlgorithms(),
-		KeyId:                key.Id(),
 	}
 }
 

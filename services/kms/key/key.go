@@ -24,6 +24,7 @@ import (
 type metadata struct {
 	// Immutable
 	Id                   string
+	KeySpec              string
 	Usage                types.Usage
 	EncryptionAlgorithms []types.EncryptionAlgorithm
 	MacAlgorithms        []string
@@ -73,6 +74,10 @@ func (k Key) Id() string {
 
 func (k Key) Enabled() bool {
 	return k.metadata.Enabled
+}
+
+func (k Key) KeySpec() string {
+	return k.metadata.KeySpec
 }
 
 func (k Key) Usage() types.Usage {
@@ -170,6 +175,7 @@ type Options struct {
 	PersistPath string
 	Usage       types.Usage
 	Id          string
+	KeySpec     string
 	Description string
 	Tags        map[string]string
 }
@@ -179,6 +185,7 @@ func (o Options) makeKey() *Key {
 		persistPath: o.PersistPath,
 		metadata: metadata{
 			Id:          o.Id,
+			KeySpec:     o.KeySpec,
 			Usage:       o.Usage,
 			Description: o.Description,
 			Tags:        o.Tags,

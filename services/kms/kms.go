@@ -5,12 +5,14 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"hash"
 	"os"
 	"path/filepath"
@@ -26,6 +28,7 @@ import (
 	"aws-in-a-box/atomicfile"
 	"aws-in-a-box/awserrors"
 	"aws-in-a-box/services/kms/key"
+	"aws-in-a-box/services/kms/types"
 )
 
 type KeyId = string
@@ -141,7 +144,7 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 		persistPath = filepath.Join(k.persistDir, keyId+".json")
 	}
 
-	usage := key.Usage(input.KeyUsage)
+	usage := types.Usage(input.KeyUsage)
 	options := key.Options{
 		PersistPath: persistPath,
 		Usage:       usage,
@@ -156,41 +159,31 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 	switch keySpec {
 	case "", "SYMMETRIC_DEFAULT":
 		if options.Usage == "" {
-			options.Usage = key.EncryptDecrypt
+			options.Usage = types.EncryptDecrypt
 		}
-		if options.Usage != key.EncryptDecrypt {
+		if options.Usage != types.EncryptDecrypt {
 			return nil, UnsupportedOperationException("Bad KeyUsage")
 		}
 
 		newKey, err = key.NewAES(options)
 	case "HMAC_224", "HMAC_256", "HMAC_384", "HMAC_512":
-		if usage != key.GenerateVerifyMAC {
+		if usage != types.GenerateVerifyMAC {
 			return nil, UnsupportedOperationException("Bad KeyUsage")
 		}
 		bytes, _ := strconv.Atoi(keySpec[4:])
 		newKey, err = key.NewHMAC(options, bytes)
 	case "RSA_2048", "RSA_3072", "RSA_4096":
-		if usage != key.EncryptDecrypt && usage != key.SignVerify {
+		if usage != types.EncryptDecrypt && usage != types.SignVerify {
 			return nil, UnsupportedOperationException("Bad KeyUsage")
 		}
 
 		bits, _ := strconv.Atoi(keySpec[4:])
 		newKey, err = key.NewRSA(options, bits)
-	case "ECC_NIST_P256":
-		if usage != key.SignVerify {
+	case "ECC_NIST_P256", "ECC_NIST_P384", "ECC_NIST_P521":
+		if usage != types.SignVerify {
 			return nil, UnsupportedOperationException("Bad KeyUsage")
 		}
-		newKey, err = key.NewECC(options, elliptic.P256())
-	case "ECC_NIST_P384":
-		if usage != key.SignVerify {
-			return nil, UnsupportedOperationException("Bad KeyUsage")
-		}
-		newKey, err = key.NewECC(options, elliptic.P384())
-	case "ECC_NIST_P521":
-		if usage != key.SignVerify {
-			return nil, UnsupportedOperationException("Bad KeyUsage")
-		}
-		newKey, err = key.NewECC(options, elliptic.P521())
+		newKey, err = key.NewECC(options, keySpec[9:])
 	default:
 		// "ECC_SECG_P256K1", "SM2":
 		return nil, UnsupportedOperationException("")
@@ -222,10 +215,14 @@ func (k *KMS) DescribeKey(input DescribeKeyInput) (*DescribeKeyOutput, *awserror
 
 func (k *KMS) toAPI(key *key.Key) APIKeyMetadata {
 	return APIKeyMetadata{
-		Arn:         k.arnGenerator.Generate("kms", "key", key.Id()),
-		Enabled:     key.Enabled(),
-		Description: key.Description(),
-		KeyId:       key.Id(),
+		Arn:                  k.arnGenerator.Generate("kms", "key", key.Id()),
+		AWSAccountId:         k.arnGenerator.AwsAccountId,
+		Description:          key.Description(),
+		Enabled:              key.Enabled(),
+		EncryptionAlgorithms: key.EncryptionAlgorithms(),
+		MacAlgorithms:        key.MacAlgorithms(),
+		SigningAlgorithms:    key.SigningAlgorithms(),
+		KeyId:                key.Id(),
 	}
 }
 
@@ -299,13 +296,13 @@ func (k *KMS) CreateAlias(input CreateAliasInput) (*CreateAliasOutput, *awserror
 	return nil, nil
 }
 
-func hasherForAlgorithm(algorithm key.SigningAlgorithm) (hash.Hash, *awserrors.Error) {
+func hasherForAlgorithm(algorithm types.SigningAlgorithm) (hash.Hash, *awserrors.Error) {
 	switch algorithm {
-	case key.RsaPssSHA256, key.RsaPkcs1SHA256, key.EcdsaSHA256:
+	case types.RsaPssSHA256, types.RsaPkcs1SHA256, types.EcdsaSHA256:
 		return sha256.New(), nil
-	case key.RsaPssSHA384, key.RsaPkcs1SHA384, key.EcdsaSHA384:
+	case types.RsaPssSHA384, types.RsaPkcs1SHA384, types.EcdsaSHA384:
 		return sha512.New384(), nil
-	case key.RsaPssSHA512, key.RsaPkcs1SHA512, key.EcdsaSHA512:
+	case types.RsaPssSHA512, types.RsaPkcs1SHA512, types.EcdsaSHA512:
 		return sha512.New(), nil
 	default:
 		return nil, UnsupportedOperationException("Unsupported SigningAlgorithm")
@@ -330,11 +327,11 @@ func (k *KMS) Sign(input SignInput) (*SignOutput, *awserrors.Error) {
 		return nil, DisabledException("")
 	}
 
-	if signingKey.Usage() != key.SignVerify {
+	if signingKey.Usage() != types.SignVerify {
 		return nil, UnsupportedOperationException("")
 	}
 
-	hasher, awserr := hasherForAlgorithm(key.SigningAlgorithm(input.SigningAlgorithm))
+	hasher, awserr := hasherForAlgorithm(input.SigningAlgorithm)
 	if awserr != nil {
 		return nil, awserr
 	}
@@ -349,9 +346,12 @@ func (k *KMS) Sign(input SignInput) (*SignOutput, *awserrors.Error) {
 		return nil, ValidationError("Bad MessageType")
 	}
 
-	signature, err := signingKey.Sign(digest, key.SigningAlgorithm(input.SigningAlgorithm))
+	signature, err := signingKey.Sign(digest, input.SigningAlgorithm)
 	if err != nil {
-		return nil, KMSInternalException(err.Error())
+		if errors.Is(err, key.ErrBadAlgorithm) {
+			return nil, UnsupportedOperationException(err.Error())
+		}
+		return nil, InvalidCiphertextException(err.Error())
 	}
 
 	return &SignOutput{
@@ -379,11 +379,11 @@ func (k *KMS) Verify(input VerifyInput) (*VerifyOutput, *awserrors.Error) {
 		return nil, DisabledException("")
 	}
 
-	if signingKey.Usage() != key.SignVerify {
+	if signingKey.Usage() != types.SignVerify {
 		return nil, UnsupportedOperationException("")
 	}
 
-	hasher, awserr := hasherForAlgorithm(key.SigningAlgorithm(input.SigningAlgorithm))
+	hasher, awserr := hasherForAlgorithm(input.SigningAlgorithm)
 	if awserr != nil {
 		return nil, awserr
 	}
@@ -398,8 +398,11 @@ func (k *KMS) Verify(input VerifyInput) (*VerifyOutput, *awserrors.Error) {
 		return nil, ValidationError("Bad MessageType")
 	}
 
-	valid, err := signingKey.Verify(digest, input.Signature, key.SigningAlgorithm(input.SigningAlgorithm))
+	valid, err := signingKey.Verify(digest, input.Signature, input.SigningAlgorithm)
 	if err != nil {
+		if errors.Is(err, key.ErrBadAlgorithm) {
+			return nil, UnsupportedOperationException(err.Error())
+		}
 		return nil, KMSInternalException("")
 	}
 
@@ -526,7 +529,7 @@ func (k *KMS) GenerateDataKey(input GenerateDataKeyInput) (*GenerateDataKeyOutpu
 		return nil, UnsupportedOperationException("")
 	}
 
-	encryptedDataKey, err := key.Encrypt(dataKey, "", input.EncryptionContext)
+	encryptedDataKey, err := key.Encrypt(dataKey, types.SymmetricDefault, input.EncryptionContext)
 	if err != nil {
 		return nil, KMSInternalException(err.Error())
 	}
@@ -590,26 +593,26 @@ func (k *KMS) GenerateDataKeyPair(input GenerateDataKeyPairInput) (*GenerateData
 
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	encryptionKey := k.lockedGetKey(input.KeyId)
-	if encryptionKey == nil {
+	key := k.lockedGetKey(input.KeyId)
+	if key == nil {
 		return nil, NotFoundException("")
 	}
 
-	if !encryptionKey.Enabled() {
+	if !key.Enabled() {
 		return nil, DisabledException("")
 	}
 
-	if encryptionKey.Usage() != key.EncryptDecrypt || !encryptionKey.IsAES() {
+	if key.Usage() != types.EncryptDecrypt || !key.IsAES() {
 		return nil, UnsupportedOperationException("")
 	}
 
-	encryptedPrivateKey, err := encryptionKey.Encrypt(serializedPrivateKey, "", input.EncryptionContext)
+	encryptedPrivateKey, err := key.Encrypt(serializedPrivateKey, types.SymmetricDefault, input.EncryptionContext)
 	if err != nil {
 		return nil, KMSInternalException(err.Error())
 	}
 
 	return &GenerateDataKeyPairOutput{
-		KeyId:                    encryptionKey.Id(),
+		KeyId:                    key.Id(),
 		KeyPairSpec:              input.KeyPairSpec,
 		PrivateKeyCiphertextBlob: encryptedPrivateKey,
 		PrivateKeyPlaintext:      serializedPrivateKey,
@@ -657,7 +660,7 @@ func (k *KMS) Encrypt(input EncryptInput) (*EncryptOutput, *awserrors.Error) {
 	}
 
 	if input.EncryptionAlgorithm == "" {
-		input.EncryptionAlgorithm = "SYMMETRIC_DEFAULT"
+		input.EncryptionAlgorithm = types.SymmetricDefault
 	}
 
 	encryptionKey := k.lockedGetKey(input.KeyId)
@@ -669,12 +672,16 @@ func (k *KMS) Encrypt(input EncryptInput) (*EncryptOutput, *awserrors.Error) {
 		return nil, DisabledException("")
 	}
 
-	if encryptionKey.Usage() != key.EncryptDecrypt {
+	if encryptionKey.Usage() != types.EncryptDecrypt {
 		return nil, UnsupportedOperationException("")
 	}
 
-	ciphertext, err := encryptionKey.Encrypt(input.Plaintext, input.EncryptionAlgorithm, input.EncryptionContext)
+	ciphertext, err := encryptionKey.Encrypt(input.Plaintext,
+		input.EncryptionAlgorithm, input.EncryptionContext)
 	if err != nil {
+		if errors.Is(err, key.ErrBadAlgorithm) {
+			return nil, UnsupportedOperationException(err.Error())
+		}
 		return nil, KMSInternalException(err.Error())
 	}
 
@@ -694,20 +701,6 @@ func (k *KMS) GenerateMac(input GenerateMacInput) (*GenerateMacOutput, *awserror
 		return nil, ValidationError("bad length")
 	}
 
-	var hasher func() hash.Hash
-	switch input.MacAlgorithm {
-	case "HMAC_SHA_224":
-		hasher = sha256.New224
-	case "HMAC_SHA_256":
-		hasher = sha256.New
-	case "HMAC_SHA_384":
-		hasher = sha512.New384
-	case "HMAC_SHA_512":
-		hasher = sha512.New
-	default:
-		return nil, ValidationError("bad MacAlgorithm")
-	}
-
 	macKey := k.lockedGetKey(input.KeyId)
 	if macKey == nil {
 		return nil, NotFoundException("")
@@ -717,14 +710,22 @@ func (k *KMS) GenerateMac(input GenerateMacInput) (*GenerateMacOutput, *awserror
 		return nil, DisabledException("")
 	}
 
-	if macKey.Usage() != key.GenerateVerifyMAC {
+	if macKey.Usage() != types.GenerateVerifyMAC {
 		return nil, UnsupportedOperationException("")
+	}
+
+	mac, err := macKey.GenerateMac(input.MacAlgorithm, input.Message)
+	if err != nil {
+		if errors.Is(err, key.ErrBadAlgorithm) {
+			return nil, UnsupportedOperationException(err.Error())
+		}
+		return nil, KMSInternalException(err.Error())
 	}
 
 	return &GenerateMacOutput{
 		KeyId:        macKey.Id(),
 		MacAlgorithm: input.MacAlgorithm,
-		Mac:          macKey.GenerateMac(hasher, input.Message),
+		Mac:          mac,
 	}, nil
 }
 
@@ -737,20 +738,6 @@ func (k *KMS) VerifyMac(input VerifyMacInput) (*VerifyMacOutput, *awserrors.Erro
 		return nil, ValidationError("bad length")
 	}
 
-	var hasher func() hash.Hash
-	switch input.MacAlgorithm {
-	case "HMAC_SHA_224":
-		hasher = sha256.New224
-	case "HMAC_SHA_256":
-		hasher = sha256.New
-	case "HMAC_SHA_384":
-		hasher = sha512.New384
-	case "HMAC_SHA_512":
-		hasher = sha512.New
-	default:
-		return nil, ValidationError("bad MacAlgorithm")
-	}
-
 	macKey := k.lockedGetKey(input.KeyId)
 	if macKey == nil {
 		return nil, NotFoundException("")
@@ -760,14 +747,22 @@ func (k *KMS) VerifyMac(input VerifyMacInput) (*VerifyMacOutput, *awserrors.Erro
 		return nil, DisabledException("")
 	}
 
-	if macKey.Usage() != key.GenerateVerifyMAC {
+	if macKey.Usage() != types.GenerateVerifyMAC {
 		return nil, UnsupportedOperationException("")
+	}
+
+	mac, err := macKey.GenerateMac(input.MacAlgorithm, input.Message)
+	if err != nil {
+		if errors.Is(err, key.ErrBadAlgorithm) {
+			return nil, UnsupportedOperationException(err.Error())
+		}
+		return nil, KMSInternalException(err.Error())
 	}
 
 	return &VerifyMacOutput{
 		KeyId:        macKey.Id(),
 		MacAlgorithm: input.MacAlgorithm,
-		MacValid:     macKey.VerifyMac(hasher, input.Message, input.Mac),
+		MacValid:     hmac.Equal(mac, input.Mac),
 	}, nil
 }
 
@@ -787,9 +782,9 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	key := k.lockedGetKey(keyArn)
+	encryptionKey := k.lockedGetKey(keyArn)
 
-	if keyArn == "" || key.IsAES() {
+	if keyArn == "" || encryptionKey.IsAES() {
 		// AES can pack keyId into the ciphertext
 		// This logic is the opposite of Key.Encrypt
 		data := ciphertext
@@ -800,24 +795,27 @@ func (k *KMS) Decrypt(input DecryptInput) (*DecryptOutput, *awserrors.Error) {
 		keyArn, ciphertext = string(data[:keyArnLen]), data[keyArnLen:]
 	}
 
-	key = k.lockedGetKey(keyArn)
-	if key == nil {
+	encryptionKey = k.lockedGetKey(keyArn)
+	if encryptionKey == nil {
 		return nil, NotFoundException("")
 	}
 
-	if !key.Enabled() {
+	if !encryptionKey.Enabled() {
 		return nil, DisabledException("")
 	}
 
-	plaintext, err := key.Decrypt(ciphertext, input.EncryptionAlgorithm, input.EncryptionContext)
+	plaintext, err := encryptionKey.Decrypt(ciphertext, input.EncryptionAlgorithm, input.EncryptionContext)
 	if err != nil {
+		if errors.Is(err, key.ErrBadAlgorithm) {
+			return nil, UnsupportedOperationException(err.Error())
+		}
 		return nil, InvalidCiphertextException(err.Error())
 	}
 
 	return &DecryptOutput{
 		Plaintext:           plaintext,
 		EncryptionAlgorithm: input.EncryptionAlgorithm,
-		KeyId:               key.Id(),
+		KeyId:               encryptionKey.Id(),
 	}, nil
 }
 

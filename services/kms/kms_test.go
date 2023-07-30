@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"aws-in-a-box/arn"
+	"aws-in-a-box/services/kms/types"
 )
 
 var kmsOptions = Options{
@@ -358,7 +359,7 @@ func TestRSAEncryptDecrypt(t *testing.T) {
 
 	keyId := output.KeyMetadata.KeyId
 
-	algorithms := []string{"RSAES_OAEP_SHA_1", "RSAES_OAEP_SHA_256"}
+	algorithms := []types.EncryptionAlgorithm{types.RsaSha1, types.RsaSha256}
 	for _, algorithm := range algorithms {
 		plaintext := []byte("The quick brown fox") //jumps over the lazy dog")
 		encryptOutput, err := k.Encrypt(EncryptInput{

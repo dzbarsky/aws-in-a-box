@@ -1,9 +1,10 @@
 package key
 
 import (
-	"crypto/elliptic"
 	"reflect"
 	"testing"
+
+	"aws-in-a-box/services/kms/types"
 )
 
 func TestSerialization(t *testing.T) {
@@ -16,7 +17,7 @@ func TestSerialization(t *testing.T) {
 
 	options := Options{
 		// Not correct, but fine for this test
-		Usage:       EncryptDecrypt,
+		Usage:       types.EncryptDecrypt,
 		Id:          "keyId",
 		Description: "",
 		Tags:        map[string]string{"tag": "value"},
@@ -25,7 +26,7 @@ func TestSerialization(t *testing.T) {
 		"AES":  must(NewAES(options)),
 		"RSA":  must(NewRSA(options, 2048)),
 		"HMAC": must(NewHMAC(options, 256)),
-		"ECC":  must(NewECC(options, elliptic.P256())),
+		"ECC":  must(NewECC(options, "256")),
 	}
 
 	for name, key := range tests {

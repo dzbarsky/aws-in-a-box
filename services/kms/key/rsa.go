@@ -8,6 +8,8 @@ import (
 	"crypto/sha256"
 	"errors"
 	"hash"
+
+	"aws-in-a-box/services/kms/types"
 )
 
 type rsaKey struct {
@@ -26,7 +28,7 @@ func newRsaKey(bits int) (rsaKey, error) {
 }
 
 func (k rsaKey) Sign(
-	digest []byte, algorithm SigningAlgorithm,
+	digest []byte, algorithm types.SigningAlgorithm,
 ) (
 	[]byte, error,
 ) {
@@ -36,20 +38,20 @@ func (k rsaKey) Sign(
 
 	var hasher crypto.Hash
 	switch algorithm {
-	case RsaPssSHA256, RsaPkcs1SHA256:
+	case types.RsaPssSHA256, types.RsaPkcs1SHA256:
 		hasher = crypto.SHA256
-	case RsaPssSHA384, RsaPkcs1SHA384:
+	case types.RsaPssSHA384, types.RsaPkcs1SHA384:
 		hasher = crypto.SHA384
-	case RsaPssSHA512, RsaPkcs1SHA512:
+	case types.RsaPssSHA512, types.RsaPkcs1SHA512:
 		hasher = crypto.SHA512
 	default:
 		return nil, InvalidSigningAlgorithm{}
 	}
 
 	switch algorithm {
-	case RsaPssSHA256, RsaPssSHA384, RsaPssSHA512:
+	case types.RsaPssSHA256, types.RsaPssSHA384, types.RsaPssSHA512:
 		return rsa.SignPSS(rand.Reader, k.key, hasher, digest, nil)
-	case RsaPkcs1SHA256, RsaPkcs1SHA384, RsaPkcs1SHA512:
+	case types.RsaPkcs1SHA256, types.RsaPkcs1SHA384, types.RsaPkcs1SHA512:
 		return rsa.SignPKCS1v15(rand.Reader, k.key, hasher, digest)
 	default:
 		return nil, InvalidSigningAlgorithm{}
@@ -59,7 +61,7 @@ func (k rsaKey) Sign(
 func (k rsaKey) Verify(
 	digest []byte,
 	signature []byte,
-	algorithm SigningAlgorithm,
+	algorithm types.SigningAlgorithm,
 ) error {
 	if len(digest) != k.key.Size() {
 		return errors.New("bad length")
@@ -67,20 +69,20 @@ func (k rsaKey) Verify(
 
 	var hasher crypto.Hash
 	switch algorithm {
-	case RsaPssSHA256, RsaPkcs1SHA256:
+	case types.RsaPssSHA256, types.RsaPkcs1SHA256:
 		hasher = crypto.SHA256
-	case RsaPssSHA384, RsaPkcs1SHA384:
+	case types.RsaPssSHA384, types.RsaPkcs1SHA384:
 		hasher = crypto.SHA384
-	case RsaPssSHA512, RsaPkcs1SHA512:
+	case types.RsaPssSHA512, types.RsaPkcs1SHA512:
 		hasher = crypto.SHA512
 	default:
 		return InvalidSigningAlgorithm{}
 	}
 
 	switch algorithm {
-	case RsaPssSHA256, RsaPssSHA384, RsaPssSHA512:
+	case types.RsaPssSHA256, types.RsaPssSHA384, types.RsaPssSHA512:
 		return rsa.VerifyPSS(&k.key.PublicKey, hasher, digest, signature, nil)
-	case RsaPkcs1SHA256, RsaPkcs1SHA384, RsaPkcs1SHA512:
+	case types.RsaPkcs1SHA256, types.RsaPkcs1SHA384, types.RsaPkcs1SHA512:
 		return rsa.VerifyPKCS1v15(&k.key.PublicKey, hasher, digest, signature)
 	default:
 		return InvalidSigningAlgorithm{}
@@ -88,13 +90,13 @@ func (k rsaKey) Verify(
 }
 
 func (k rsaKey) Encrypt(
-	plaintext []byte, algorithm string,
+	plaintext []byte, algorithm types.EncryptionAlgorithm,
 ) ([]byte, error) {
 	var hasher hash.Hash
 	switch algorithm {
-	case "RSAES_OAEP_SHA_1":
+	case types.RsaSha1:
 		hasher = sha1.New()
-	case "RSAES_OAEP_SHA_256":
+	case types.RsaSha256:
 		hasher = sha256.New()
 	default:
 		return nil, errors.New("unknown encryption algorithm")
@@ -104,13 +106,13 @@ func (k rsaKey) Encrypt(
 }
 
 func (k rsaKey) Decrypt(
-	ciphertext []byte, algorithm string,
+	ciphertext []byte, algorithm types.EncryptionAlgorithm,
 ) ([]byte, error) {
 	var hasher hash.Hash
 	switch algorithm {
-	case "RSAES_OAEP_SHA_1":
+	case types.RsaSha1:
 		hasher = sha1.New()
-	case "RSAES_OAEP_SHA_256":
+	case types.RsaSha256:
 		hasher = sha256.New()
 	default:
 		return nil, errors.New("unknown encryption algorithm")

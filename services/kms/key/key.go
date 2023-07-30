@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/hmac"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"encoding/binary"
 	"encoding/json"
@@ -14,45 +15,31 @@ import (
 	"os"
 
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"aws-in-a-box/atomicfile"
+	"aws-in-a-box/services/kms/types"
 )
 
-type Usage string
+type metadata struct {
+	// Immutable
+	Id                   string
+	Usage                types.Usage
+	EncryptionAlgorithms []types.EncryptionAlgorithm
+	MacAlgorithms        []string
+	SigningAlgorithms    []types.SigningAlgorithm
 
-const (
-	EncryptDecrypt    Usage = "ENCRYPT_DECRYPT"
-	GenerateVerifyMAC Usage = "GENERATE_VERIFY_MAC"
-	SignVerify        Usage = "SIGN_VERIFY"
-)
-
-type SigningAlgorithm string
-
-const (
-	RsaPssSHA256   SigningAlgorithm = "RSASSA_PSS_SHA_256"
-	RsaPssSHA384   SigningAlgorithm = "RSASSA_PSS_SHA_384"
-	RsaPssSHA512   SigningAlgorithm = "RSASSA_PSS_SHA_512"
-	RsaPkcs1SHA256 SigningAlgorithm = "RSASSA_PKCS1_V1_5_SHA_256"
-	RsaPkcs1SHA384 SigningAlgorithm = "RSASSA_PKCS1_V1_5_SHA_384"
-	RsaPkcs1SHA512 SigningAlgorithm = "RSASSA_PKCS1_V1_5_SHA_512"
-	EcdsaSHA256    SigningAlgorithm = "ECDSA_SHA_256"
-	EcdsaSHA384    SigningAlgorithm = "ECDSA_SHA_384"
-	EcdsaSHA512    SigningAlgorithm = "ECDSA_SHA_512"
-)
+	// Mutable
+	Description string
+	Enabled     bool
+	Tags        map[string]string
+}
 
 type Key struct {
 	// If empty, no persistence
 	persistPath string
 
-	// immutable
-	id    string
-	usage Usage
-
-	// mutable
-	description string
-	enabled     bool
-	tags        map[string]string
-
+	metadata metadata
 	// variants
 	aesKey  aesKey
 	rsaKey  rsaKey
@@ -81,45 +68,57 @@ func (k Key) IsAsymmetric() bool {
 }
 
 func (k Key) Id() string {
-	return k.id
+	return k.metadata.Id
 }
 
 func (k Key) Enabled() bool {
-	return k.enabled
+	return k.metadata.Enabled
 }
 
-func (k Key) Usage() Usage {
-	return k.usage
+func (k Key) Usage() types.Usage {
+	return k.metadata.Usage
 }
 
 func (k Key) Description() string {
-	return k.description
+	return k.metadata.Description
 }
 
 func (k *Key) Tags() map[string]string {
-	return maps.Clone(k.tags)
+	return maps.Clone(k.metadata.Tags)
+}
+
+func (k *Key) EncryptionAlgorithms() []types.EncryptionAlgorithm {
+	return slices.Clone(k.metadata.EncryptionAlgorithms)
+}
+
+func (k *Key) SigningAlgorithms() []types.SigningAlgorithm {
+	return slices.Clone(k.metadata.SigningAlgorithms)
+}
+
+func (k *Key) MacAlgorithms() []string {
+	return slices.Clone(k.metadata.MacAlgorithms)
 }
 
 func (k *Key) SetEnabled(enabled bool) error {
-	k.enabled = enabled
+	k.metadata.Enabled = enabled
 	return k.persist()
 }
 
 func (k *Key) SetDescription(description string) error {
-	k.description = description
+	k.metadata.Description = description
 	return k.persist()
 }
 
 func (k *Key) SetTags(tags map[string]string) error {
 	for tagKey, tagValue := range tags {
-		k.tags[tagKey] = tagValue
+		k.metadata.Tags[tagKey] = tagValue
 	}
 	return k.persist()
 }
 
 func (k *Key) DeleteTags(tags []string) error {
 	for _, tag := range tags {
-		delete(k.tags, tag)
+		delete(k.metadata.Tags, tag)
 	}
 	return k.persist()
 }
@@ -137,14 +136,11 @@ func (k *Key) persist() error {
 }
 
 type serializableKey struct {
-	Id          string
-	Usage       Usage
-	Enabled     bool
-	Description string
-	Tags        map[string]string
-	AesKeys     [][32]byte
-	RsaKey      *rsa.PrivateKey
-	HmacKey     []byte
+	Metadata metadata
+
+	AesKeys [][32]byte
+	RsaKey  *rsa.PrivateKey
+	HmacKey []byte
 	// Note: ecdsa Keys don't serialize nicely, see https://github.com/golang/go/issues/33564
 	// So instead, we use the PKCS8 format. Note that this means the parsed keys used the generic
 	// curves rather than the specialized ones, which is a performance hit.
@@ -153,14 +149,10 @@ type serializableKey struct {
 
 func (k *Key) serialize() ([]byte, error) {
 	key := serializableKey{
-		Id:          k.id,
-		Usage:       k.usage,
-		Enabled:     k.enabled,
-		Description: k.description,
-		Tags:        k.tags,
-		AesKeys:     k.aesKey.backingKeys,
-		RsaKey:      k.rsaKey.key,
-		HmacKey:     k.hmacKey.key,
+		Metadata: k.metadata,
+		AesKeys:  k.aesKey.backingKeys,
+		RsaKey:   k.rsaKey.key,
+		HmacKey:  k.hmacKey.key,
 	}
 
 	if k.eccKey.key != nil {
@@ -176,7 +168,7 @@ func (k *Key) serialize() ([]byte, error) {
 
 type Options struct {
 	PersistPath string
-	Usage       Usage
+	Usage       types.Usage
 	Id          string
 	Description string
 	Tags        map[string]string
@@ -185,23 +177,41 @@ type Options struct {
 func (o Options) makeKey() *Key {
 	return &Key{
 		persistPath: o.PersistPath,
-		id:          o.Id,
-		usage:       o.Usage,
-		description: o.Description,
-		tags:        o.Tags,
-		enabled:     true,
+		metadata: metadata{
+			Id:          o.Id,
+			Usage:       o.Usage,
+			Description: o.Description,
+			Tags:        o.Tags,
+			Enabled:     true,
+		},
 	}
 }
 
 func NewAES(options Options) (*Key, error) {
 	k := options.makeKey()
 	k.aesKey = newAesKey()
+	k.metadata.EncryptionAlgorithms = []types.EncryptionAlgorithm{types.SymmetricDefault}
 
 	err := k.persist()
 	if err != nil {
 		return nil, err
 	}
 	return k, nil
+}
+
+func shaForBytes(bytes int) string {
+	switch bytes {
+	case 224:
+		return "HMAC_SHA_224"
+	case 256:
+		return "HMAC_SHA_256"
+	case 384:
+		return "HMAC_SHA_384"
+	case 512:
+		return "HMAC_SHA_512"
+	default:
+		panic("failed validation")
+	}
 }
 
 func NewRSA(options Options, bits int) (*Key, error) {
@@ -212,6 +222,13 @@ func NewRSA(options Options, bits int) (*Key, error) {
 
 	k := options.makeKey()
 	k.rsaKey = rsaKey
+	if options.Usage == types.EncryptDecrypt {
+		k.metadata.EncryptionAlgorithms = []types.EncryptionAlgorithm{
+			types.RsaSha1, types.RsaSha256,
+		}
+	} else {
+		k.metadata.MacAlgorithms = []string{shaForBytes(bits / 8)}
+	}
 
 	err = k.persist()
 	if err != nil {
@@ -223,6 +240,7 @@ func NewRSA(options Options, bits int) (*Key, error) {
 func NewHMAC(options Options, bytes int) (*Key, error) {
 	k := options.makeKey()
 	k.hmacKey = newHmacKey(bytes)
+	k.metadata.MacAlgorithms = []string{shaForBytes(bytes)}
 
 	err := k.persist()
 	if err != nil {
@@ -231,13 +249,34 @@ func NewHMAC(options Options, bytes int) (*Key, error) {
 	return k, nil
 }
 
-func NewECC(options Options, curve elliptic.Curve) (*Key, error) {
+func NewECC(options Options, bytes string) (*Key, error) {
+	k := options.makeKey()
+
+	var curve elliptic.Curve
+	switch bytes {
+	case "256":
+		curve = elliptic.P256()
+		k.metadata.SigningAlgorithms = []types.SigningAlgorithm{
+			types.RsaPssSHA256, types.RsaPkcs1SHA256,
+		}
+	case "384":
+		curve = elliptic.P384()
+		k.metadata.SigningAlgorithms = []types.SigningAlgorithm{
+			types.RsaPssSHA384, types.RsaPkcs1SHA384,
+		}
+	case "521":
+		curve = elliptic.P521()
+		k.metadata.SigningAlgorithms = []types.SigningAlgorithm{
+			types.RsaPssSHA512, types.RsaPkcs1SHA512,
+		}
+	default:
+		return nil, errors.New("unknown size")
+	}
+
 	eccKey, err := newECCKey(curve)
 	if err != nil {
 		return nil, err
 	}
-
-	k := options.makeKey()
 	k.eccKey = eccKey
 
 	err = k.persist()
@@ -273,14 +312,10 @@ func newFromData(data []byte) (*Key, error) {
 	}
 
 	k := &Key{
-		id:          key.Id,
-		enabled:     key.Enabled,
-		usage:       key.Usage,
-		tags:        key.Tags,
-		description: key.Description,
-		aesKey:      aesKey{backingKeys: key.AesKeys},
-		rsaKey:      rsaKey{key: key.RsaKey},
-		hmacKey:     hmacKey{key: key.HmacKey},
+		metadata: key.Metadata,
+		aesKey:   aesKey{backingKeys: key.AesKeys},
+		rsaKey:   rsaKey{key: key.RsaKey},
+		hmacKey:  hmacKey{key: key.HmacKey},
 	}
 
 	if len(key.EccKey) > 0 {
@@ -294,13 +329,19 @@ func newFromData(data []byte) (*Key, error) {
 	return k, nil
 }
 
+var ErrBadAlgorithm = errors.New("Bad algorithm")
+
 func (k *Key) Encrypt(
 	plaintext []byte,
-	algorithm string,
+	algorithm types.EncryptionAlgorithm,
 	context map[string]string,
 ) (
 	[]byte, error,
 ) {
+	if !slices.Contains(k.metadata.EncryptionAlgorithms, algorithm) {
+		return nil, ErrBadAlgorithm
+	}
+
 	if k.IsRSA() {
 		return k.rsaKey.Encrypt(plaintext, algorithm)
 	}
@@ -309,17 +350,23 @@ func (k *Key) Encrypt(
 		return nil, err
 	}
 
-	var packedBlob = []byte{uint8(len(k.id))}
-	packedBlob = append(packedBlob, k.id...)
+	var packedBlob = []byte{uint8(len(k.metadata.Id))}
+	packedBlob = append(packedBlob, k.metadata.Id...)
 	packedBlob = binary.LittleEndian.AppendUint32(packedBlob, version)
 	return append(packedBlob, ciphertext...), nil
 }
 
 func (k *Key) Decrypt(
-	data []byte, algorithm string, context map[string]string,
+	data []byte,
+	algorithm types.EncryptionAlgorithm,
+	context map[string]string,
 ) (
 	[]byte, error,
 ) {
+	if !slices.Contains(k.metadata.EncryptionAlgorithms, algorithm) {
+		return nil, ErrBadAlgorithm
+	}
+
 	if k.IsRSA() {
 		return k.rsaKey.Decrypt(data, algorithm)
 	}
@@ -329,10 +376,14 @@ func (k *Key) Decrypt(
 
 func (k *Key) Sign(
 	digest []byte,
-	algorithm SigningAlgorithm,
+	algorithm types.SigningAlgorithm,
 ) (
 	[]byte, error,
 ) {
+	if !slices.Contains(k.metadata.SigningAlgorithms, algorithm) {
+		return nil, ErrBadAlgorithm
+	}
+
 	if k.IsRSA() {
 		return k.rsaKey.Sign(digest, algorithm)
 	} else {
@@ -343,8 +394,12 @@ func (k *Key) Sign(
 func (k *Key) Verify(
 	digest []byte,
 	signature []byte,
-	algorithm SigningAlgorithm,
+	algorithm types.SigningAlgorithm,
 ) (bool, error) {
+	if !slices.Contains(k.metadata.SigningAlgorithms, algorithm) {
+		return false, ErrBadAlgorithm
+	}
+
 	if k.IsRSA() {
 		err := k.rsaKey.Verify(digest, signature, algorithm)
 		if errors.Is(err, rsa.ErrVerification) {
@@ -357,15 +412,25 @@ func (k *Key) Verify(
 }
 
 func (k *Key) GenerateMac(
-	hasher func() hash.Hash, message []byte,
-) []byte {
-	return k.hmacKey.GenerateMac(hasher, message)
-}
+	algorithm string, message []byte,
+) ([]byte, error) {
+	if !slices.Contains(k.metadata.MacAlgorithms, algorithm) {
+		return nil, ErrBadAlgorithm
+	}
 
-func (k *Key) VerifyMac(
-	hasher func() hash.Hash,
-	message []byte,
-	mac []byte,
-) bool {
-	return hmac.Equal(mac, k.hmacKey.GenerateMac(hasher, message))
+	var hasher func() hash.Hash
+	switch algorithm {
+	case "HMAC_SHA_224":
+		hasher = sha256.New224
+	case "HMAC_SHA_256":
+		hasher = sha256.New
+	case "HMAC_SHA_384":
+		hasher = sha512.New384
+	case "HMAC_SHA_512":
+		hasher = sha512.New
+	default:
+		return nil, ErrBadAlgorithm
+	}
+
+	return k.hmacKey.GenerateMac(hasher, message), nil
 }

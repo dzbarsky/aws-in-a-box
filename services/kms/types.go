@@ -1,5 +1,7 @@
 package kms
 
+import "aws-in-a-box/services/kms/types"
+
 type CreateKeyInput struct {
 	Description           string
 	CustomerMasterKeySpec string
@@ -43,14 +45,14 @@ type UpdateAliasOutput struct{}
 type SignInput struct {
 	KeyId            string
 	Message          []byte
-	SigningAlgorithm string
+	SigningAlgorithm types.SigningAlgorithm
 	MessageType      string
 }
 
 type SignOutput struct {
 	KeyId            string
 	Signature        []byte
-	SigningAlgorithm string
+	SigningAlgorithm types.SigningAlgorithm
 }
 
 type VerifyInput struct {
@@ -58,13 +60,13 @@ type VerifyInput struct {
 	Message          []byte
 	MessageType      string
 	Signature        []byte
-	SigningAlgorithm string
+	SigningAlgorithm types.SigningAlgorithm
 }
 
 type VerifyOutput struct {
 	KeyId            string
 	SignatureValid   bool
-	SigningAlgorithm string
+	SigningAlgorithm types.SigningAlgorithm
 }
 
 type ListAliasesInput struct {
@@ -136,7 +138,7 @@ type GenerateRandomOutput struct {
 }
 
 type EncryptInput struct {
-	EncryptionAlgorithm string
+	EncryptionAlgorithm types.EncryptionAlgorithm
 	EncryptionContext   map[string]string
 	KeyId               string
 	Plaintext           []byte
@@ -144,7 +146,7 @@ type EncryptInput struct {
 
 type EncryptOutput struct {
 	CiphertextBlob      []byte
-	EncryptionAlgorithm string
+	EncryptionAlgorithm types.EncryptionAlgorithm
 	KeyId               string
 }
 
@@ -175,23 +177,27 @@ type VerifyMacOutput struct {
 
 type DecryptInput struct {
 	CiphertextBlob      []byte
-	EncryptionAlgorithm string
+	EncryptionAlgorithm types.EncryptionAlgorithm
 	EncryptionContext   map[string]string
 	KeyId               string
 }
 
 type DecryptOutput struct {
 	Plaintext           []byte
-	EncryptionAlgorithm string
+	EncryptionAlgorithm types.EncryptionAlgorithm
 	KeyId               string
 }
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_KeyMetadata.html
 type APIKeyMetadata struct {
-	Arn         string
-	Description string
-	Enabled     bool
-	KeyId       string
+	Arn                  string
+	AWSAccountId         string
+	Description          string
+	Enabled              bool
+	EncryptionAlgorithms []types.EncryptionAlgorithm
+	KeyId                string
+	MacAlgorithms        []string
+	SigningAlgorithms    []types.SigningAlgorithm
 }
 
 type UpdateKeyDescriptionInput struct {
@@ -253,18 +259,18 @@ type APIKey struct {
 
 type ReEncryptInput struct {
 	CiphertextBlob                 []byte
-	DestinationEncryptionAlgorithm string
+	DestinationEncryptionAlgorithm types.EncryptionAlgorithm
 	DestinationEncryptionContext   map[string]string
 	DestinationKeyId               string
 	SourceKeyId                    string
-	SourceEncryptionAlgorithm      string
+	SourceEncryptionAlgorithm      types.EncryptionAlgorithm
 	SourceEncryptionContext        map[string]string
 }
 
 type ReEncryptOutput struct {
 	CiphertextBlob                 []byte
-	DestinationEncryptionAlgorithm string
+	DestinationEncryptionAlgorithm types.EncryptionAlgorithm
 	KeyId                          string
-	SourceEncryptionAlgorithm      string
+	SourceEncryptionAlgorithm      types.EncryptionAlgorithm
 	SourceKeyId                    string
 }

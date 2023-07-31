@@ -658,6 +658,11 @@ func (s *S3) AbortMultipartUpload(input AbortMultipartUploadInput) (*Response204
 		return nil, awserrors.XXX_TODO("bad upload status")
 	}
 
+	if upload.Bucket != input.Bucket || upload.Key != input.Key {
+		// TODO: check this behavior
+		return nil, awserrors.XXX_TODO("bad upload")
+	}
+
 	upload.Status = UploadStatusCompleted
 	return response204, nil
 }

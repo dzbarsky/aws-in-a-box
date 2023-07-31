@@ -5,9 +5,6 @@ import (
 	"strings"
 )
 
-type ARN struct {
-}
-
 type Generator struct {
 	AwsAccountId string
 	Region       string

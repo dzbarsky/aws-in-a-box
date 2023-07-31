@@ -215,12 +215,6 @@ type APIStartingPosition struct {
 	Timestamp int64
 }
 
-type SubscribeToShardOutput struct {
-	EventStream struct {
-		SubscribeToShardEvent APISubscribeToShardEvent
-	}
-}
-
 type APISubscribeToShardEvent struct {
 	ContinuationSequenceNumber string
 	MillisBehindLatest         int32

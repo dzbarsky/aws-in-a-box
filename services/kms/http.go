@@ -13,6 +13,7 @@ func (k *KMS) RegisterHTTPHandlers(logger *slog.Logger, methodRegistry http.Regi
 	http.Register(logger, methodRegistry, service, "CreateKey", k.CreateKey)
 	http.Register(logger, methodRegistry, service, "Decrypt", k.Decrypt)
 	http.Register(logger, methodRegistry, service, "DeleteAlias", k.DeleteAlias)
+	http.Register(logger, methodRegistry, service, "DescribeKey", k.DescribeKey)
 	http.Register(logger, methodRegistry, service, "DisableKey", k.DisableKey)
 	http.Register(logger, methodRegistry, service, "EnableKey", k.EnableKey)
 	http.Register(logger, methodRegistry, service, "Encrypt", k.Encrypt)

@@ -1,4 +1,444 @@
 {
+    "TestCreateKey/bad_usage_for_hmac": {
+        "Err": {
+            "Code": "ValidationException",
+            "Message": "KeyUsage ENCRYPT_DECRYPT is not compatible with KeySpec HMAC_224",
+            "Fault": "unknown"
+        },
+        "Resp": null
+    },
+    "TestCreateKey/bad_usage_for_symmetric": {
+        "Err": {
+            "Code": "ValidationException",
+            "Message": "KeyUsage GENERATE_VERIFY_MAC is not compatible with KeySpec SYMMETRIC_DEFAULT",
+            "Fault": "unknown"
+        },
+        "Resp": null
+    },
+    "TestCreateKey/good_ECC_NIST_P256": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "43d67f33-73b3-4dcf-8700-14df7e866e28",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/43d67f33-73b3-4dcf-8700-14df7e866e28",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:07.039Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "ECC_NIST_P256",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": null,
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "ECC_NIST_P256",
+                "KeyState": "Enabled",
+                "KeyUsage": "SIGN_VERIFY",
+                "MacAlgorithms": null,
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": [
+                    "ECDSA_SHA_256"
+                ],
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateKey/good_ECC_NIST_P384": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "af389a38-1eec-420c-84fd-5c45a0a00dfe",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/af389a38-1eec-420c-84fd-5c45a0a00dfe",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:06.192Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "ECC_NIST_P384",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": null,
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "ECC_NIST_P384",
+                "KeyState": "Enabled",
+                "KeyUsage": "SIGN_VERIFY",
+                "MacAlgorithms": null,
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": [
+                    "ECDSA_SHA_384"
+                ],
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateKey/good_ECC_NIST_P521": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "f08bb6d2-a834-45d8-8185-2542fa6c2e7a",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/f08bb6d2-a834-45d8-8185-2542fa6c2e7a",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:07.386Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "ECC_NIST_P521",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": null,
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "ECC_NIST_P521",
+                "KeyState": "Enabled",
+                "KeyUsage": "SIGN_VERIFY",
+                "MacAlgorithms": null,
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": [
+                    "ECDSA_SHA_512"
+                ],
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateKey/good_HMAC_224": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "1cd0fa72-182b-45ab-b3cc-8b4e172d5114",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/1cd0fa72-182b-45ab-b3cc-8b4e172d5114",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:06.82Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "HMAC_224",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": null,
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "HMAC_224",
+                "KeyState": "Enabled",
+                "KeyUsage": "GENERATE_VERIFY_MAC",
+                "MacAlgorithms": [
+                    "HMAC_SHA_224"
+                ],
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": null,
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateKey/good_HMAC_256": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "33117182-9863-49c7-874c-44b98751a36f",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/33117182-9863-49c7-874c-44b98751a36f",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:07.181Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "HMAC_256",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": null,
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "HMAC_256",
+                "KeyState": "Enabled",
+                "KeyUsage": "GENERATE_VERIFY_MAC",
+                "MacAlgorithms": [
+                    "HMAC_SHA_256"
+                ],
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": null,
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateKey/good_HMAC_384": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "e4bf18f6-628a-42f3-9e34-fb0bccf14262",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/e4bf18f6-628a-42f3-9e34-fb0bccf14262",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:06.403Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "HMAC_384",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": null,
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "HMAC_384",
+                "KeyState": "Enabled",
+                "KeyUsage": "GENERATE_VERIFY_MAC",
+                "MacAlgorithms": [
+                    "HMAC_SHA_384"
+                ],
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": null,
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateKey/good_HMAC_512": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "2fade8df-6434-4a5b-806c-1b7e1d29d0c9",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/2fade8df-6434-4a5b-806c-1b7e1d29d0c9",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:06.918Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "HMAC_512",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": null,
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "HMAC_512",
+                "KeyState": "Enabled",
+                "KeyUsage": "GENERATE_VERIFY_MAC",
+                "MacAlgorithms": [
+                    "HMAC_SHA_512"
+                ],
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": null,
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateKey/good_RSA_2048_encryption": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "5f58653f-655b-44ed-bcef-8ca060e1ea78",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/5f58653f-655b-44ed-bcef-8ca060e1ea78",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:06.502Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "RSA_2048",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": [
+                    "RSAES_OAEP_SHA_1",
+                    "RSAES_OAEP_SHA_256"
+                ],
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "RSA_2048",
+                "KeyState": "Enabled",
+                "KeyUsage": "ENCRYPT_DECRYPT",
+                "MacAlgorithms": null,
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": null,
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateKey/good_RSA_2048_sign": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "191dec3e-486b-4d9b-83c4-0f962ba5e02e",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/191dec3e-486b-4d9b-83c4-0f962ba5e02e",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:07.3Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "RSA_2048",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": null,
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "RSA_2048",
+                "KeyState": "Enabled",
+                "KeyUsage": "SIGN_VERIFY",
+                "MacAlgorithms": null,
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": [
+                    "RSASSA_PKCS1_V1_5_SHA_256",
+                    "RSASSA_PKCS1_V1_5_SHA_384",
+                    "RSASSA_PKCS1_V1_5_SHA_512",
+                    "RSASSA_PSS_SHA_256",
+                    "RSASSA_PSS_SHA_384",
+                    "RSASSA_PSS_SHA_512"
+                ],
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateKey/good_RSA_3072_sign": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "85f8e71b-6633-4d62-a4dd-4872902ff0f3",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/85f8e71b-6633-4d62-a4dd-4872902ff0f3",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:06.603Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "RSA_3072",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": null,
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "RSA_3072",
+                "KeyState": "Enabled",
+                "KeyUsage": "SIGN_VERIFY",
+                "MacAlgorithms": null,
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": [
+                    "RSASSA_PKCS1_V1_5_SHA_256",
+                    "RSASSA_PKCS1_V1_5_SHA_384",
+                    "RSASSA_PKCS1_V1_5_SHA_512",
+                    "RSASSA_PSS_SHA_256",
+                    "RSASSA_PSS_SHA_384",
+                    "RSASSA_PSS_SHA_512"
+                ],
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateKey/good_RSA_4096_sign": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "064c2041-f3c9-466a-98da-2efa22215faa",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/064c2041-f3c9-466a-98da-2efa22215faa",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:06.698Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "RSA_4096",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": null,
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "RSA_4096",
+                "KeyState": "Enabled",
+                "KeyUsage": "SIGN_VERIFY",
+                "MacAlgorithms": null,
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": [
+                    "RSASSA_PKCS1_V1_5_SHA_256",
+                    "RSASSA_PKCS1_V1_5_SHA_384",
+                    "RSASSA_PKCS1_V1_5_SHA_512",
+                    "RSASSA_PSS_SHA_256",
+                    "RSASSA_PSS_SHA_384",
+                    "RSASSA_PSS_SHA_512"
+                ],
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateKey/good_symmetric": {
+        "Err": null,
+        "Resp": {
+            "KeyMetadata": {
+                "KeyId": "43e6f683-58f6-406a-a7e7-1809f692f67b",
+                "AWSAccountId": "666354587717",
+                "Arn": "arn:aws:kms:us-east-2:666354587717:key/43e6f683-58f6-406a-a7e7-1809f692f67b",
+                "CloudHsmClusterId": null,
+                "CreationDate": "2023-08-06T22:05:06.084Z",
+                "CustomKeyStoreId": null,
+                "CustomerMasterKeySpec": "SYMMETRIC_DEFAULT",
+                "DeletionDate": null,
+                "Description": "",
+                "Enabled": true,
+                "EncryptionAlgorithms": [
+                    "SYMMETRIC_DEFAULT"
+                ],
+                "ExpirationModel": "",
+                "KeyManager": "CUSTOMER",
+                "KeySpec": "SYMMETRIC_DEFAULT",
+                "KeyState": "Enabled",
+                "KeyUsage": "ENCRYPT_DECRYPT",
+                "MacAlgorithms": null,
+                "MultiRegion": false,
+                "MultiRegionConfiguration": null,
+                "Origin": "AWS_KMS",
+                "PendingDeletionWindowInDays": null,
+                "SigningAlgorithms": null,
+                "ValidTo": null,
+                "XksKeyConfiguration": null
+            },
+            "ResultMetadata": {}
+        }
+    },
     "TestCreateKey/unknown_keyspec": {
         "Err": {
             "Code": "ValidationException",

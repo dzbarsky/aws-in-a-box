@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"golang.org/x/exp/slog"
@@ -139,6 +140,9 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 	if keySpec == "" {
 		keySpec = input.CustomerMasterKeySpec
 	}
+	if keySpec == "" {
+		keySpec = "SYMMETRIC_DEFAULT"
+	}
 
 	persistPath := ""
 	if k.persistDir != "" {
@@ -146,46 +150,53 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 	}
 
 	usage := types.Usage(input.KeyUsage)
+
 	options := key.Options{
 		PersistPath: persistPath,
-		Usage:       usage,
-		Id:          keyId,
-		KeySpec:     input.KeySpec,
-		Description: input.Description,
-		Tags:        tags,
+
+		CreationDate: time.Now(),
+		Id:           keyId,
+		KeySpec:      keySpec,
+		Description:  input.Description,
+		Tags:         tags,
+		Usage:        usage,
 	}
 
 	var newKey *key.Key
 	var err error
 
 	switch keySpec {
-	case "", "SYMMETRIC_DEFAULT":
+	case "SYMMETRIC_DEFAULT":
 		if options.Usage == "" {
 			options.Usage = types.EncryptDecrypt
 		}
 		if options.Usage != types.EncryptDecrypt {
-			return nil, UnsupportedOperationException("Bad KeyUsage")
+			return nil, ValidationException(fmt.Sprintf(
+				"KeyUsage %s is not compatible with KeySpec %s", options.Usage, keySpec))
 		}
 
 		newKey, err = key.NewAES(options)
 	case "HMAC_224", "HMAC_256", "HMAC_384", "HMAC_512":
 		if usage != types.GenerateVerifyMAC {
-			return nil, UnsupportedOperationException("Bad KeyUsage")
+			return nil, ValidationException(fmt.Sprintf(
+				"KeyUsage %s is not compatible with KeySpec %s", options.Usage, keySpec))
 		}
-		bytes, _ := strconv.Atoi(keySpec[4:])
+		bytes, _ := strconv.Atoi(keySpec[5:])
 		newKey, err = key.NewHMAC(options, bytes)
 	case "RSA_2048", "RSA_3072", "RSA_4096":
 		if usage != types.EncryptDecrypt && usage != types.SignVerify {
-			return nil, UnsupportedOperationException("Bad KeyUsage")
+			return nil, ValidationException(fmt.Sprintf(
+				"KeyUsage %s is not compatible with KeySpec %s", options.Usage, keySpec))
 		}
 
 		bits, _ := strconv.Atoi(keySpec[4:])
 		newKey, err = key.NewRSA(options, bits)
 	case "ECC_NIST_P256", "ECC_NIST_P384", "ECC_NIST_P521":
 		if usage != types.SignVerify {
-			return nil, UnsupportedOperationException("Bad KeyUsage")
+			return nil, ValidationException(fmt.Sprintf(
+				"KeyUsage %s is not compatible with KeySpec %s", options.Usage, keySpec))
 		}
-		newKey, err = key.NewECC(options, keySpec[9:])
+		newKey, err = key.NewECC(options, keySpec[10:])
 	case "ECC_SECG_P256K1", "SM2":
 		return nil, UnsupportedOperationException(
 			fmt.Sprintf("KeySpec %s is not supported in this Region", keySpec))
@@ -219,16 +230,25 @@ func (k *KMS) DescribeKey(input DescribeKeyInput) (*DescribeKeyOutput, *awserror
 
 func (k *KMS) toAPI(key *key.Key) APIKeyMetadata {
 	return APIKeyMetadata{
-		Arn:                  k.arnGenerator.Generate("kms", "key", key.Id()),
-		AWSAccountId:         k.arnGenerator.AwsAccountId,
-		Description:          key.Description(),
-		Enabled:              key.Enabled(),
-		EncryptionAlgorithms: key.EncryptionAlgorithms(),
-		KeyId:                key.Id(),
-		KeySpec:              key.KeySpec(),
-		KeyUsage:             key.Usage(),
-		MacAlgorithms:        key.MacAlgorithms(),
-		SigningAlgorithms:    key.SigningAlgorithms(),
+		Arn:                   k.arnGenerator.Generate("kms", "key", key.Id()),
+		AWSAccountId:          k.arnGenerator.AwsAccountId,
+		CustomerMasterKeySpec: key.KeySpec(),
+		CreationDate:          key.CreationDate(),
+		Description:           key.Description(),
+		Enabled:               key.Enabled(),
+		EncryptionAlgorithms:  key.EncryptionAlgorithms(),
+		KeyId:                 key.Id(),
+		KeySpec:               key.KeySpec(),
+		KeyState:              key.KeyState(),
+		KeyUsage:              key.Usage(),
+		MacAlgorithms:         key.MacAlgorithms(),
+		SigningAlgorithms:     key.SigningAlgorithms(),
+		// TODO: built-in keys
+		Origin: "AWS_KMS",
+		// TODO: multiregion
+		MultiRegion: false,
+		// TODO: what is this
+		KeyManager: "CUSTOMER",
 	}
 }
 

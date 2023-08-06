@@ -190,16 +190,22 @@ type DecryptOutput struct {
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_KeyMetadata.html
 type APIKeyMetadata struct {
-	Arn                  string
-	AWSAccountId         string
-	Description          string
-	Enabled              bool
-	EncryptionAlgorithms []types.EncryptionAlgorithm
-	KeyId                string
-	KeySpec              string
-	KeyUsage             types.Usage
-	MacAlgorithms        []string
-	SigningAlgorithms    []types.SigningAlgorithm
+	Arn                   string
+	AWSAccountId          string
+	CustomerMasterKeySpec string
+	CreationDate          float64
+	Description           string
+	Enabled               bool
+	EncryptionAlgorithms  []types.EncryptionAlgorithm
+	KeyId                 string
+	KeySpec               string
+	KeyManager            string
+	KeyState              string
+	KeyUsage              types.Usage
+	MacAlgorithms         []string
+	MultiRegion           bool
+	Origin                string
+	SigningAlgorithms     []types.SigningAlgorithm
 }
 
 type UpdateKeyDescriptionInput struct {

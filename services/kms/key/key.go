@@ -11,8 +11,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash"
 	"os"
+	"time"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -24,6 +26,7 @@ import (
 type metadata struct {
 	// Immutable
 	Id                   string
+	CreationDate         float64
 	KeySpec              string
 	Usage                types.Usage
 	EncryptionAlgorithms []types.EncryptionAlgorithm
@@ -80,8 +83,21 @@ func (k Key) KeySpec() string {
 	return k.metadata.KeySpec
 }
 
+func (k Key) KeyState() string {
+	// TODO: more key states
+	if k.metadata.Enabled {
+		return "Enabled"
+	} else {
+		return "Disabled"
+	}
+}
+
 func (k Key) Usage() types.Usage {
 	return k.metadata.Usage
+}
+
+func (k Key) CreationDate() float64 {
+	return k.metadata.CreationDate
 }
 
 func (k Key) Description() string {
@@ -172,24 +188,27 @@ func (k *Key) serialize() ([]byte, error) {
 }
 
 type Options struct {
-	PersistPath string
-	Usage       types.Usage
-	Id          string
-	KeySpec     string
-	Description string
-	Tags        map[string]string
+	PersistPath  string
+	CreationDate time.Time
+	Description  string
+	Id           string
+	KeySpec      string
+	Tags         map[string]string
+	Usage        types.Usage
 }
 
 func (o Options) makeKey() *Key {
 	return &Key{
 		persistPath: o.PersistPath,
 		metadata: metadata{
-			Id:          o.Id,
-			KeySpec:     o.KeySpec,
-			Usage:       o.Usage,
-			Description: o.Description,
-			Tags:        o.Tags,
-			Enabled:     true,
+			CreationDate: float64(o.CreationDate.UnixMilli()) / 1000,
+			Description:  o.Description,
+			Id:           o.Id,
+			KeySpec:      o.KeySpec,
+			Tags:         o.Tags,
+			Usage:        o.Usage,
+
+			Enabled: true,
 		},
 	}
 }
@@ -217,7 +236,7 @@ func shaForBytes(bytes int) string {
 	case 512:
 		return "HMAC_SHA_512"
 	default:
-		panic("failed validation")
+		panic(fmt.Sprintf("bad bytes: %v", bytes))
 	}
 }
 
@@ -234,7 +253,14 @@ func NewRSA(options Options, bits int) (*Key, error) {
 			types.RsaSha1, types.RsaSha256,
 		}
 	} else {
-		k.metadata.MacAlgorithms = []string{shaForBytes(bits / 8)}
+		k.metadata.SigningAlgorithms = []types.SigningAlgorithm{
+			types.RsaPkcs1SHA256,
+			types.RsaPkcs1SHA384,
+			types.RsaPkcs1SHA512,
+			types.RsaPssSHA256,
+			types.RsaPssSHA384,
+			types.RsaPssSHA512,
+		}
 	}
 
 	err = k.persist()
@@ -264,17 +290,17 @@ func NewECC(options Options, bytes string) (*Key, error) {
 	case "256":
 		curve = elliptic.P256()
 		k.metadata.SigningAlgorithms = []types.SigningAlgorithm{
-			types.RsaPssSHA256, types.RsaPkcs1SHA256,
+			types.EcdsaSHA256,
 		}
 	case "384":
 		curve = elliptic.P384()
 		k.metadata.SigningAlgorithms = []types.SigningAlgorithm{
-			types.RsaPssSHA384, types.RsaPkcs1SHA384,
+			types.EcdsaSHA384,
 		}
 	case "521":
 		curve = elliptic.P521()
 		k.metadata.SigningAlgorithms = []types.SigningAlgorithm{
-			types.RsaPssSHA512, types.RsaPkcs1SHA512,
+			types.EcdsaSHA512,
 		}
 	default:
 		return nil, errors.New("unknown size")

@@ -8,18 +8,21 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/aws/smithy-go"
+	"github.com/google/go-cmp/cmp"
 	"golang.org/x/exp/slog"
 
+	"aws-in-a-box/arn"
 	"aws-in-a-box/server"
 	kmsImpl "aws-in-a-box/services/kms"
 )
+
+const region = "us-east-2"
 
 func makeClient(addrOverride string) *kms.Client {
 	options := kms.Options{
@@ -30,7 +33,7 @@ func makeClient(addrOverride string) *kms.Client {
 			}, nil
 		}),
 		Retryer: aws.NopRetryer{},
-		Region:  "us-east-2",
+		Region:  region,
 	}
 	if addrOverride != "" {
 		options.BaseEndpoint = aws.String("http://" + addrOverride)
@@ -43,7 +46,12 @@ func makeServer() (*http.Server, net.Listener) {
 	if err != nil {
 		panic(err)
 	}
-	impl, err := kmsImpl.New(kmsImpl.Options{})
+	impl, err := kmsImpl.New(kmsImpl.Options{
+		ArnGenerator: arn.Generator{
+			AwsAccountId: "666354587717",
+			Region:       region,
+		},
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -114,8 +122,23 @@ func TestCreateKey(t *testing.T) {
 	client := makeClient(addr)
 
 	tests := map[string]*kms.CreateKeyInput{
-		"unknown keyspec":     {KeySpec: types.KeySpec("FAKE")},
-		"unsupported keyspec": {KeySpec: types.KeySpecSm2},
+		"unknown keyspec":         {KeySpec: types.KeySpec("FAKE")},
+		"unsupported keyspec":     {KeySpec: types.KeySpecSm2},
+		"bad usage for symmetric": {KeyUsage: types.KeyUsageTypeGenerateVerifyMac},
+		"bad usage for hmac":      {KeySpec: types.KeySpecHmac224, KeyUsage: types.KeyUsageTypeEncryptDecrypt},
+
+		"good symmetric":           {},
+		"good HMAC_224":            {KeySpec: types.KeySpecHmac224, KeyUsage: types.KeyUsageTypeGenerateVerifyMac},
+		"good HMAC_256":            {KeySpec: types.KeySpecHmac256, KeyUsage: types.KeyUsageTypeGenerateVerifyMac},
+		"good HMAC_384":            {KeySpec: types.KeySpecHmac384, KeyUsage: types.KeyUsageTypeGenerateVerifyMac},
+		"good HMAC_512":            {KeySpec: types.KeySpecHmac512, KeyUsage: types.KeyUsageTypeGenerateVerifyMac},
+		"good RSA_2048 encryption": {KeySpec: types.KeySpecRsa2048, KeyUsage: types.KeyUsageTypeEncryptDecrypt},
+		"good RSA_2048 sign":       {KeySpec: types.KeySpecRsa2048, KeyUsage: types.KeyUsageTypeSignVerify},
+		"good RSA_3072 sign":       {KeySpec: types.KeySpecRsa3072, KeyUsage: types.KeyUsageTypeSignVerify},
+		"good RSA_4096 sign":       {KeySpec: types.KeySpecRsa4096, KeyUsage: types.KeyUsageTypeSignVerify},
+		"good ECC_NIST_P256":       {KeySpec: types.KeySpecEccNistP256, KeyUsage: types.KeyUsageTypeSignVerify},
+		"good ECC_NIST_P384":       {KeySpec: types.KeySpecEccNistP384, KeyUsage: types.KeyUsageTypeSignVerify},
+		"good ECC_NIST_P521":       {KeySpec: types.KeySpecEccNistP521, KeyUsage: types.KeyUsageTypeSignVerify},
 	}
 
 	for name, input := range tests {
@@ -125,31 +148,21 @@ func TestCreateKey(t *testing.T) {
 			if err != nil {
 				var apiErr smithy.APIError
 				if !errors.As(err, &apiErr) {
-					t.Fatal("unexpected error")
+					t.Fatal("unwant error", err)
 				}
-				gotErr := APIError{
+				gotErr := &APIError{
 					Code:    apiErr.ErrorCode(),
 					Message: apiErr.ErrorMessage(),
 					Fault:   apiErr.ErrorFault().String(),
 				}
 				if generateSnapshot {
 					snapshots[t.Name()] = APIResponse{
-						Err: &gotErr,
+						Err: gotErr,
 					}
 				} else {
-					expectedErr := snapshots[t.Name()].Err
-					if expectedErr == nil {
-						t.Fatalf("Unexpected error: %s", apiErr)
-					}
-					apiErr.ErrorFault()
-					if expectedErr.Fault != apiErr.ErrorFault().String() {
-						t.Fatalf("Bad error fault, want \n%v, got \n%v", expectedErr.Fault, apiErr.ErrorFault().String())
-					}
-					if expectedErr.Code != apiErr.ErrorCode() {
-						t.Fatalf("Bad error code, want \n%v, got \n%v", expectedErr.Code, apiErr.ErrorCode())
-					}
-					if expectedErr.Message != apiErr.ErrorMessage() {
-						t.Fatalf("Bad error message, want \n%v, got \n%v", expectedErr.Message, apiErr.ErrorMessage())
+					wantErr := snapshots[t.Name()].Err
+					if !cmp.Equal(gotErr, wantErr) {
+						t.Fatal(cmp.Diff(gotErr, wantErr))
 					}
 				}
 			} else {
@@ -158,9 +171,28 @@ func TestCreateKey(t *testing.T) {
 						Resp: resp,
 					}
 				} else {
-					expectedResp := snapshots[t.Name()].Resp
-					if !reflect.DeepEqual(expectedResp, resp) {
-						t.Fatalf("Bad resp, want %v, got %v", expectedResp, resp)
+					wantResp := snapshots[t.Name()].Resp.(map[string]interface{})
+
+					data, err := json.Marshal(resp)
+					if err != nil {
+						t.Fatal(err)
+					}
+					var gotResp map[string]interface{}
+					err = json.Unmarshal(data, &gotResp)
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					diff := cmp.Diff(gotResp, wantResp,
+						// KeyId is random and Arn depends on it. Verified structure manually.
+						cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["KeyId"]` }, cmp.Ignore()),
+						cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["Arn"]` }, cmp.Ignore()),
+						// Example: 2023-08-06T23:45:13.719Z
+						// TODO: figure out how to verify the format here
+						cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["CreationDate"]` }, cmp.Ignore()),
+					)
+					if diff != "" {
+						t.Fatal(diff)
 					}
 				}
 			}

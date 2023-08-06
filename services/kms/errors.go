@@ -44,8 +44,8 @@ func InvalidParameterCombination(message string) *awserrors.Error {
 	return awserrors.Generate400Exception("InvalidParameterCombination", message)
 }
 
-func ValidationError(message string) *awserrors.Error {
-	return awserrors.Generate400Exception("ValidationError", message)
+func ValidationException(message string) *awserrors.Error {
+	return awserrors.Generate400Exception("ValidationException", message)
 }
 
 func XXXTodoException(message string) *awserrors.Error {

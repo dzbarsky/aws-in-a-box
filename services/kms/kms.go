@@ -187,7 +187,7 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 		newKey, err = key.NewECC(options, keySpec[9:])
 	default:
 		// "ECC_SECG_P256K1", "SM2":
-		return nil, UnsupportedOperationException("")
+		return nil, ValidationException("1 validation error detected: Value 'FAKE' at 'keySpec' failed to satisfy constraint: Member must satisfy enum value set: [RSA_2048, ECC_NIST_P384, ECC_NIST_P256, ECC_NIST_P521, HMAC_384, RSA_3072, ECC_SECG_P256K1, RSA_4096, SYMMETRIC_DEFAULT, HMAC_256, HMAC_224, HMAC_512]")
 	}
 	if err != nil {
 		return nil, KMSInternalException(err.Error())
@@ -315,7 +315,7 @@ func hasherForAlgorithm(algorithm types.SigningAlgorithm) (hash.Hash, *awserrors
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_Sign.html
 func (k *KMS) Sign(input SignInput) (*SignOutput, *awserrors.Error) {
 	if len(input.Message) > 4096 {
-		return nil, ValidationError("Message too long; use digest")
+		return nil, ValidationException("Message too long; use digest")
 	}
 
 	k.mu.Lock()
@@ -346,7 +346,7 @@ func (k *KMS) Sign(input SignInput) (*SignOutput, *awserrors.Error) {
 	case "DIGEST":
 		digest = input.Message
 	default:
-		return nil, ValidationError("Bad MessageType")
+		return nil, ValidationException("Bad MessageType")
 	}
 
 	signature, err := signingKey.Sign(digest, input.SigningAlgorithm)
@@ -367,7 +367,7 @@ func (k *KMS) Sign(input SignInput) (*SignOutput, *awserrors.Error) {
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_Verify.html
 func (k *KMS) Verify(input VerifyInput) (*VerifyOutput, *awserrors.Error) {
 	if len(input.Message) > 4096 {
-		return nil, ValidationError("Message too long; use digest")
+		return nil, ValidationException("Message too long; use digest")
 	}
 
 	k.mu.Lock()
@@ -398,7 +398,7 @@ func (k *KMS) Verify(input VerifyInput) (*VerifyOutput, *awserrors.Error) {
 	case "DIGEST":
 		digest = input.Message
 	default:
-		return nil, ValidationError("Bad MessageType")
+		return nil, ValidationException("Bad MessageType")
 	}
 
 	valid, err := signingKey.Verify(digest, input.Signature, input.SigningAlgorithm)
@@ -577,11 +577,11 @@ func (k *KMS) GenerateDataKeyPair(input GenerateDataKeyPairInput) (*GenerateData
 	case "ECC_NIST_P521":
 		pkey, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	case "":
-		return nil, ValidationError("Must specify KeyPairSpec")
+		return nil, ValidationException("Must specify KeyPairSpec")
 	case "ECC_SECG_P256K1":
 		// fallthrough
 	default:
-		return nil, ValidationError("Unknown value for KeyPair Spec")
+		return nil, ValidationException("Unknown value for KeyPair Spec")
 	}
 
 	serializedPublicKey, err := x509.MarshalPKIXPublicKey(pkey.Public())
@@ -642,7 +642,7 @@ func (k *KMS) GenerateDataKeyPairWithoutPlaintext(
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_GenerateRandom.html
 func (k *KMS) GenerateRandom(input GenerateRandomInput) (*GenerateRandomOutput, *awserrors.Error) {
 	if input.NumberOfBytes < 0 || input.NumberOfBytes > 1024 {
-		return nil, ValidationError("Invalid NumberOfBytes")
+		return nil, ValidationException("Invalid NumberOfBytes")
 	}
 
 	data := make([]byte, input.NumberOfBytes)
@@ -701,7 +701,7 @@ func (k *KMS) GenerateMac(input GenerateMacInput) (*GenerateMacOutput, *awserror
 	defer k.mu.Unlock()
 
 	if len(input.Message) == 0 || len(input.Message) > 4096 {
-		return nil, ValidationError("bad length")
+		return nil, ValidationException("bad length")
 	}
 
 	macKey := k.lockedGetKey(input.KeyId)
@@ -738,7 +738,7 @@ func (k *KMS) VerifyMac(input VerifyMacInput) (*VerifyMacOutput, *awserrors.Erro
 	defer k.mu.Unlock()
 
 	if len(input.Message) == 0 || len(input.Message) > 4096 {
-		return nil, ValidationError("bad length")
+		return nil, ValidationException("bad length")
 	}
 
 	macKey := k.lockedGetKey(input.KeyId)

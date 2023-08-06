@@ -13,6 +13,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash"
 	"os"
 	"path/filepath"
@@ -185,8 +186,10 @@ func (k *KMS) CreateKey(input CreateKeyInput) (*CreateKeyOutput, *awserrors.Erro
 			return nil, UnsupportedOperationException("Bad KeyUsage")
 		}
 		newKey, err = key.NewECC(options, keySpec[9:])
+	case "ECC_SECG_P256K1", "SM2":
+		return nil, UnsupportedOperationException(
+			fmt.Sprintf("KeySpec %s is not supported in this Region", keySpec))
 	default:
-		// "ECC_SECG_P256K1", "SM2":
 		return nil, ValidationException("1 validation error detected: Value 'FAKE' at 'keySpec' failed to satisfy constraint: Member must satisfy enum value set: [RSA_2048, ECC_NIST_P384, ECC_NIST_P256, ECC_NIST_P521, HMAC_384, RSA_3072, ECC_SECG_P256K1, RSA_4096, SYMMETRIC_DEFAULT, HMAC_256, HMAC_224, HMAC_512]")
 	}
 	if err != nil {

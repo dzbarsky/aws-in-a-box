@@ -37,7 +37,7 @@ func TagException(message string) *awserrors.Error {
 }
 
 func UnsupportedOperationException(message string) *awserrors.Error {
-	return awserrors.Generate400Exception("UnsupportedOperationException", message)
+	return awserrors.Generate400ExceptionWithLegacyMesageField("UnsupportedOperationException", message)
 }
 
 func InvalidParameterCombination(message string) *awserrors.Error {

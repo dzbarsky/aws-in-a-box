@@ -1,9 +1,17 @@
 {
-    "TestCreateKey/bad_keyspec": {
+    "TestCreateKey/unknown_keyspec": {
         "Err": {
             "Code": "ValidationException",
             "Message": "1 validation error detected: Value 'FAKE' at 'keySpec' failed to satisfy constraint: Member must satisfy enum value set: [RSA_2048, ECC_NIST_P384, ECC_NIST_P256, ECC_NIST_P521, HMAC_384, RSA_3072, ECC_SECG_P256K1, RSA_4096, SYMMETRIC_DEFAULT, HMAC_256, HMAC_224, HMAC_512]",
             "Fault": "unknown"
+        },
+        "Resp": null
+    },
+    "TestCreateKey/unsupported_keyspec": {
+        "Err": {
+            "Code": "UnsupportedOperationException",
+            "Message": "KeySpec SM2 is not supported in this Region",
+            "Fault": "client"
         },
         "Resp": null
     }

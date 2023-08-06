@@ -6,8 +6,9 @@ type Error struct {
 }
 
 type ErrorBody struct {
-	Type    string `json:"__type"`
-	Message string
+	Type          string `json:"__type"`
+	Message       string `json:"Message,omitempty"`
+	LegacyMessage string `json:"message,omitempty"`
 }
 
 func Generate400Exception(typ, message string) *Error {
@@ -16,6 +17,16 @@ func Generate400Exception(typ, message string) *Error {
 		Body: ErrorBody{
 			Type:    typ,
 			Message: message,
+		},
+	}
+}
+
+func Generate400ExceptionWithLegacyMesageField(typ, message string) *Error {
+	return &Error{
+		Code: 400,
+		Body: ErrorBody{
+			Type:          typ,
+			LegacyMessage: message,
 		},
 	}
 }

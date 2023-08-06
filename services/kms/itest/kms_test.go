@@ -114,7 +114,8 @@ func TestCreateKey(t *testing.T) {
 	client := makeClient(addr)
 
 	tests := map[string]*kms.CreateKeyInput{
-		"bad keyspec": {KeySpec: types.KeySpec("FAKE")},
+		"unknown keyspec":     {KeySpec: types.KeySpec("FAKE")},
+		"unsupported keyspec": {KeySpec: types.KeySpecSm2},
 	}
 
 	for name, input := range tests {
@@ -142,7 +143,7 @@ func TestCreateKey(t *testing.T) {
 					}
 					apiErr.ErrorFault()
 					if expectedErr.Fault != apiErr.ErrorFault().String() {
-						t.Fatalf("Bad error message, want \n%v, got \n%v", expectedErr.Fault, apiErr.ErrorFault().String())
+						t.Fatalf("Bad error fault, want \n%v, got \n%v", expectedErr.Fault, apiErr.ErrorFault().String())
 					}
 					if expectedErr.Code != apiErr.ErrorCode() {
 						t.Fatalf("Bad error code, want \n%v, got \n%v", expectedErr.Code, apiErr.ErrorCode())

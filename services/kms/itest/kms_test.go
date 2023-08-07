@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -112,15 +111,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestCreateKey(t *testing.T) {
-	var addr string
-	if !generateSnapshot {
-		srv, listener := makeServer()
-		defer srv.Shutdown(context.Background())
-		addr = listener.Addr().String()
-	}
-
-	client := makeClient(addr)
-
 	tests := map[string]*kms.CreateKeyInput{
 		"unknown keyspec":         {KeySpec: types.KeySpec("FAKE")},
 		"unsupported keyspec":     {KeySpec: types.KeySpecSm2},
@@ -141,10 +131,46 @@ func TestCreateKey(t *testing.T) {
 		"good ECC_NIST_P521":       {KeySpec: types.KeySpecEccNistP521, KeyUsage: types.KeyUsageTypeSignVerify},
 	}
 
+	createKey := func(client *kms.Client, input *kms.CreateKeyInput) (*kms.CreateKeyOutput, error) {
+		return client.CreateKey(context.Background(), input)
+	}
+
+	endpointTest(t, nil, tests, createKey,
+		// KeyId is random and Arn depends on it. Verified structure manually.
+		cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["KeyId"]` }, cmp.Ignore()),
+		cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["Arn"]` }, cmp.Ignore()),
+		// Example: 2023-08-06T23:45:13.719Z
+		// TODO: figure out how to verify the format here
+		cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["CreationDate"]` }, cmp.Ignore()),
+	)
+}
+
+func endpointTest[Input any, Output any](
+	t *testing.T,
+	setupFunc func(client *kms.Client) error,
+	tests map[string]Input,
+	runTestFunc func(client *kms.Client, input Input) (Output, error),
+	cmpRespOptions ...cmp.Option,
+) {
+	var addr string
+	if !generateSnapshot {
+		srv, listener := makeServer()
+		defer srv.Shutdown(context.Background())
+		addr = listener.Addr().String()
+	}
+
+	client := makeClient(addr)
+
+	if setupFunc != nil {
+		err := setupFunc(client)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	for name, input := range tests {
 		t.Run(name, func(t *testing.T) {
-			fmt.Println(t.Name())
-			resp, err := client.CreateKey(context.Background(), input)
+			resp, err := runTestFunc(client, input)
 			if err != nil {
 				var apiErr smithy.APIError
 				if !errors.As(err, &apiErr) {
@@ -183,14 +209,7 @@ func TestCreateKey(t *testing.T) {
 						t.Fatal(err)
 					}
 
-					diff := cmp.Diff(gotResp, wantResp,
-						// KeyId is random and Arn depends on it. Verified structure manually.
-						cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["KeyId"]` }, cmp.Ignore()),
-						cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["Arn"]` }, cmp.Ignore()),
-						// Example: 2023-08-06T23:45:13.719Z
-						// TODO: figure out how to verify the format here
-						cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["CreationDate"]` }, cmp.Ignore()),
-					)
+					diff := cmp.Diff(gotResp, wantResp, cmpRespOptions...)
 					if diff != "" {
 						t.Fatal(diff)
 					}

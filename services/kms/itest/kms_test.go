@@ -152,13 +152,14 @@ func TestCreateKey(t *testing.T) {
 
 func TestCreateAlias(t *testing.T) {
 	tests := map[string]*kms.CreateAliasInput{
-		"missing alias prefix":       {AliasName: aws.String("name")},
-		"confusing alias name":       {AliasName: aws.String("alias/aws")},
-		"reversed alias name":        {AliasName: aws.String("alias/aws/kinesis")},
-		"overly long alias name":     {AliasName: aws.String("alias/" + strings.Repeat("a", 254))},
-		"invalid char in alias name": {AliasName: aws.String("alias/name?")},
+		"missing alias prefix":               {AliasName: aws.String("name")},
+		"confusing alias name":               {AliasName: aws.String("alias/aws")},
+		"reversed alias name":                {AliasName: aws.String("alias/aws/kinesis")},
+		"overly long alias name":             {AliasName: aws.String("alias/" + strings.Repeat("a", 254))},
+		"invalid char in alias name":         {AliasName: aws.String("alias/name?")},
+		"overly long and invalid alias name": {AliasName: aws.String("alias/" + strings.Repeat("?", 254))},
 
-		"good alias name": {AliasName: aws.String("alias/name")},
+		"good alias name": {AliasName: aws.String("alias/good")},
 		"long alias name": {AliasName: aws.String("alias/" + strings.Repeat("a", 245))},
 	}
 
@@ -171,13 +172,22 @@ func TestCreateAlias(t *testing.T) {
 		t.Run("already exists", func(t *testing.T) {
 			input := &kms.CreateAliasInput{
 				TargetKeyId: key.KeyMetadata.KeyId,
-				AliasName:   aws.String("alias/name"),
+				AliasName:   aws.String("alias/duplicate"),
 			}
 			_, err := client.CreateAlias(context.Background(), input)
 			if err != nil {
 				t.Fatal(err)
 			}
 			resp, err := client.CreateAlias(context.Background(), input)
+			checkResult(t, resp, err)
+		})
+
+		t.Run("target doesn't exists", func(t *testing.T) {
+			resp, err := client.CreateAlias(context.Background(), &kms.CreateAliasInput{
+				TargetKeyId: aws.String("6e7c7e7a-b9ae-41af-8a1f-227a3ed1e398"),
+				AliasName:   aws.String("alias/nonexistant"),
+			})
+
 			checkResult(t, resp, err)
 		})
 

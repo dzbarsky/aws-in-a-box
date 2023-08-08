@@ -310,7 +310,7 @@ func (k *KMS) CreateAlias(input CreateAliasInput) (*CreateAliasOutput, *awserror
 
 	key := k.lockedGetKey(input.TargetKeyId)
 	if key == nil {
-		return nil, NotFoundException("")
+		return nil, NotFoundException("Invalid keyId" + input.TargetKeyId)
 	}
 
 	aliasName := strings.TrimPrefix(input.AliasName, "alias/")

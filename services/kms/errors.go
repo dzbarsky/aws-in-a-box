@@ -33,7 +33,7 @@ func KMSInternalException(message string) *awserrors.Error {
 }
 
 func NotFoundException(message string) *awserrors.Error {
-	return awserrors.Generate400Exception("NotFoundException", message)
+	return awserrors.Generate400ExceptionWithLegacyMesageField("NotFoundException", message)
 }
 
 func TagException(message string) *awserrors.Error {

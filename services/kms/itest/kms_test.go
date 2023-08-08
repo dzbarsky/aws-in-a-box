@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -144,6 +145,47 @@ func TestCreateKey(t *testing.T) {
 					// TODO: figure out how to verify the format here
 					cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["CreationDate"]` }, cmp.Ignore()),
 				)
+			})
+		}
+	})
+}
+
+func TestCreateAlias(t *testing.T) {
+	tests := map[string]*kms.CreateAliasInput{
+		"missing alias prefix":       {AliasName: aws.String("name")},
+		"confusing alias name":       {AliasName: aws.String("alias/aws")},
+		"reversed alias name":        {AliasName: aws.String("alias/aws/kinesis")},
+		"overly long alias name":     {AliasName: aws.String("alias/" + strings.Repeat("a", 254))},
+		"invalid char in alias name": {AliasName: aws.String("alias/name?")},
+
+		"good alias name": {AliasName: aws.String("alias/name")},
+		"long alias name": {AliasName: aws.String("alias/" + strings.Repeat("a", 245))},
+	}
+
+	withClient(func(client *kms.Client) {
+		key, err := client.CreateKey(context.Background(), &kms.CreateKeyInput{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		t.Run("already exists", func(t *testing.T) {
+			input := &kms.CreateAliasInput{
+				TargetKeyId: key.KeyMetadata.KeyId,
+				AliasName:   aws.String("alias/name"),
+			}
+			_, err := client.CreateAlias(context.Background(), input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := client.CreateAlias(context.Background(), input)
+			checkResult(t, resp, err)
+		})
+
+		for name, input := range tests {
+			t.Run(name, func(t *testing.T) {
+				input.TargetKeyId = key.KeyMetadata.KeyId
+				resp, err := client.CreateAlias(context.Background(), input)
+				checkResult(t, resp, err)
 			})
 		}
 	})

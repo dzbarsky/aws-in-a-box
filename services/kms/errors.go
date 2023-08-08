@@ -6,8 +6,12 @@ func InvalidAliasNameException(message string) *awserrors.Error {
 	return awserrors.Generate400Exception("InvalidAliasNameException", message)
 }
 
+func NotAuthorizedException(message string) *awserrors.Error {
+	return awserrors.Generate400Exception("NotAuthorizedException", message)
+}
+
 func AlreadyExistsException(message string) *awserrors.Error {
-	return awserrors.Generate400Exception("AlreadyExistsException", message)
+	return awserrors.Generate400ExceptionWithLegacyMesageField("AlreadyExistsException", message)
 }
 
 func DisabledException(message string) *awserrors.Error {

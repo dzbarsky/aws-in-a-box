@@ -43,4 +43,19 @@ func main() {
 			fmt.Println(err)
 		}
 	}
+
+	aliases, err := client.ListAliases(ctx, &kms.ListAliasesInput{})
+	if err != nil {
+		panic(err)
+	}
+
+	for _, alias := range aliases.Aliases {
+		fmt.Println("Deleting", alias.AliasName)
+		_, err = client.DeleteAlias(ctx, &kms.DeleteAliasInput{
+			AliasName: alias.AliasName,
+		})
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
 }

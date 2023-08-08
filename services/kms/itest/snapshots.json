@@ -454,5 +454,65 @@
             "Fault": "client"
         },
         "Resp": null
+    },
+      "TestCreateAlias/already_exists": {
+        "Err": {
+            "Code": "AlreadyExistsException",
+            "Message": "An alias with the name arn:aws:kms:us-east-2:666354587717:alias/name already exists",
+            "Fault": "client"
+        },
+        "Resp": null
+    },
+    "TestCreateAlias/confusing_alias_name": {
+        "Err": null,
+        "Resp": {
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateAlias/good_alias_name": {
+        "Err": {
+            "Code": "AlreadyExistsException",
+            "Message": "An alias with the name arn:aws:kms:us-east-2:666354587717:alias/name already exists",
+            "Fault": "client"
+        },
+        "Resp": null
+    },
+    "TestCreateAlias/invalid_char_in_alias_name": {
+        "Err": {
+            "Code": "ValidationException",
+            "Message": "1 validation error detected: Value 'alias/name?' at 'aliasName' failed to satisfy constraint: Member must satisfy regular expression pattern: ^[a-zA-Z0-9:/_-]+$",
+            "Fault": "unknown"
+        },
+        "Resp": null
+    },
+    "TestCreateAlias/long_alias_name": {
+        "Err": null,
+        "Resp": {
+            "ResultMetadata": {}
+        }
+    },
+    "TestCreateAlias/missing_alias_prefix": {
+        "Err": {
+            "Code": "ValidationException",
+            "Message": "Alias must start with the prefix \"alias/\". Please see https://docs.aws.amazon.com/kms/latest/developerguide/kms-alias.html",
+            "Fault": "unknown"
+        },
+        "Resp": null
+    },
+    "TestCreateAlias/overly_long_alias_name": {
+        "Err": {
+            "Code": "ValidationException",
+            "Message": "1 validation error detected: Value 'alias/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' at 'aliasName' failed to satisfy constraint: Member must have length less than or equal to 256",
+            "Fault": "unknown"
+        },
+        "Resp": null
+    },
+    "TestCreateAlias/reversed_alias_name": {
+        "Err": {
+            "Code": "NotAuthorizedException",
+            "Message": "The alias name for a customer managed CMK cannot begin with alias/aws/.",
+            "Fault": "unknown"
+        },
+        "Resp": null
     }
 }

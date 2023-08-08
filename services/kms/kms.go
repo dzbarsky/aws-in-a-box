@@ -284,19 +284,25 @@ var aliasNameRe = regexp.MustCompile("^[a-zA-Z0-9/_-]+$")
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateAlias.html
 func (k *KMS) CreateAlias(input CreateAliasInput) (*CreateAliasOutput, *awserrors.Error) {
 	if !strings.HasPrefix(input.AliasName, "alias/") {
-		return nil, InvalidAliasNameException("")
+		return nil, ValidationException(`Alias must start with the prefix "alias/". Please see https://docs.aws.amazon.com/kms/latest/developerguide/kms-alias.html`)
 	}
 
 	if strings.HasPrefix(input.AliasName, "alias/aws/") {
-		return nil, InvalidAliasNameException("")
+		return nil, NotAuthorizedException("The alias name for a customer managed CMK cannot begin with alias/aws/.")
 	}
 
 	if len(input.AliasName) > 256 {
-		return nil, InvalidAliasNameException("")
+		return nil, ValidationException(fmt.Sprintf(
+			"1 validation error detected: Value '%s' at 'aliasName' failed to satisfy constraint: Member must have length less than or equal to 256",
+			input.AliasName,
+		))
 	}
 
 	if !aliasNameRe.MatchString(input.AliasName) {
-		return nil, InvalidAliasNameException("")
+		return nil, ValidationException(fmt.Sprintf(
+			"1 validation error detected: Value '%s' at 'aliasName' failed to satisfy constraint: Member must satisfy regular expression pattern: ^[a-zA-Z0-9:/_-]+$",
+			input.AliasName,
+		))
 	}
 
 	k.mu.Lock()
@@ -309,7 +315,10 @@ func (k *KMS) CreateAlias(input CreateAliasInput) (*CreateAliasOutput, *awserror
 
 	aliasName := strings.TrimPrefix(input.AliasName, "alias/")
 	if _, ok := k.aliases[aliasName]; ok {
-		return nil, AlreadyExistsException("")
+		return nil, AlreadyExistsException(fmt.Sprintf(
+			"An alias with the name %s already exists",
+			k.arnGenerator.Generate("kms", "alias", aliasName),
+		))
 	}
 
 	k.aliases[aliasName] = key.Id()

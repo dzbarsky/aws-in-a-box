@@ -131,27 +131,25 @@ func TestCreateKey(t *testing.T) {
 		"good ECC_NIST_P521":       {KeySpec: types.KeySpecEccNistP521, KeyUsage: types.KeyUsageTypeSignVerify},
 	}
 
-	createKey := func(client *kms.Client, input *kms.CreateKeyInput) (*kms.CreateKeyOutput, error) {
-		return client.CreateKey(context.Background(), input)
-	}
+	withClient(func(client *kms.Client) {
+		for name, input := range tests {
+			t.Run(name, func(t *testing.T) {
+				resp, err := client.CreateKey(context.Background(), input)
 
-	endpointTest(t, nil, tests, createKey,
-		// KeyId is random and Arn depends on it. Verified structure manually.
-		cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["KeyId"]` }, cmp.Ignore()),
-		cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["Arn"]` }, cmp.Ignore()),
-		// Example: 2023-08-06T23:45:13.719Z
-		// TODO: figure out how to verify the format here
-		cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["CreationDate"]` }, cmp.Ignore()),
-	)
+				checkResult(t, resp, err,
+					// KeyId is random and Arn depends on it. Verified structure manually.
+					cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["KeyId"]` }, cmp.Ignore()),
+					cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["Arn"]` }, cmp.Ignore()),
+					// Example: 2023-08-06T23:45:13.719Z
+					// TODO: figure out how to verify the format here
+					cmp.FilterPath(func(path cmp.Path) bool { return path.Last().String() == `["CreationDate"]` }, cmp.Ignore()),
+				)
+			})
+		}
+	})
 }
 
-func endpointTest[Input any, Output any](
-	t *testing.T,
-	setupFunc func(client *kms.Client) error,
-	tests map[string]Input,
-	runTestFunc func(client *kms.Client, input Input) (Output, error),
-	cmpRespOptions ...cmp.Option,
-) {
+func withClient(fn func(client *kms.Client)) {
 	var addr string
 	if !generateSnapshot {
 		srv, listener := makeServer()
@@ -160,61 +158,52 @@ func endpointTest[Input any, Output any](
 	}
 
 	client := makeClient(addr)
+	fn(client)
+}
 
-	if setupFunc != nil {
-		err := setupFunc(client)
-		if err != nil {
-			t.Fatal(err)
+func checkResult(t *testing.T, resp any, err error, cmpRespOptions ...cmp.Option) {
+	if err != nil {
+		var apiErr smithy.APIError
+		if !errors.As(err, &apiErr) {
+			t.Fatal("unwant error", err)
 		}
-	}
-
-	for name, input := range tests {
-		t.Run(name, func(t *testing.T) {
-			resp, err := runTestFunc(client, input)
-			if err != nil {
-				var apiErr smithy.APIError
-				if !errors.As(err, &apiErr) {
-					t.Fatal("unwant error", err)
-				}
-				gotErr := &APIError{
-					Code:    apiErr.ErrorCode(),
-					Message: apiErr.ErrorMessage(),
-					Fault:   apiErr.ErrorFault().String(),
-				}
-				if generateSnapshot {
-					snapshots[t.Name()] = APIResponse{
-						Err: gotErr,
-					}
-				} else {
-					wantErr := snapshots[t.Name()].Err
-					if !cmp.Equal(gotErr, wantErr) {
-						t.Fatal(cmp.Diff(gotErr, wantErr))
-					}
-				}
-			} else {
-				if generateSnapshot {
-					snapshots[t.Name()] = APIResponse{
-						Resp: resp,
-					}
-				} else {
-					wantResp := snapshots[t.Name()].Resp.(map[string]interface{})
-
-					data, err := json.Marshal(resp)
-					if err != nil {
-						t.Fatal(err)
-					}
-					var gotResp map[string]interface{}
-					err = json.Unmarshal(data, &gotResp)
-					if err != nil {
-						t.Fatal(err)
-					}
-
-					diff := cmp.Diff(gotResp, wantResp, cmpRespOptions...)
-					if diff != "" {
-						t.Fatal(diff)
-					}
-				}
+		gotErr := &APIError{
+			Code:    apiErr.ErrorCode(),
+			Message: apiErr.ErrorMessage(),
+			Fault:   apiErr.ErrorFault().String(),
+		}
+		if generateSnapshot {
+			snapshots[t.Name()] = APIResponse{
+				Err: gotErr,
 			}
-		})
+		} else {
+			wantErr := snapshots[t.Name()].Err
+			if !cmp.Equal(gotErr, wantErr) {
+				t.Fatal(cmp.Diff(gotErr, wantErr))
+			}
+		}
+	} else {
+		if generateSnapshot {
+			snapshots[t.Name()] = APIResponse{
+				Resp: resp,
+			}
+		} else {
+			wantResp := snapshots[t.Name()].Resp.(map[string]interface{})
+
+			data, err := json.Marshal(resp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var gotResp map[string]interface{}
+			err = json.Unmarshal(data, &gotResp)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			diff := cmp.Diff(gotResp, wantResp, cmpRespOptions...)
+			if diff != "" {
+				t.Fatal(diff)
+			}
+		}
 	}
 }

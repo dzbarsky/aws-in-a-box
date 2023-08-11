@@ -552,8 +552,8 @@ func (s *S3) ListParts(input ListPartsInput) (*ListPartsOutput, *awserrors.Error
 	for _, part := range upload.Parts {
 		parts = append(parts, part)
 	}
-	slices.SortFunc(parts, func(a, b Part) bool {
-		return a.Number < b.Number
+	slices.SortFunc(parts, func(a, b Part) int {
+		return a.Number - b.Number
 	})
 
 	startIndex := 0
@@ -605,8 +605,8 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 		return nil, awserrors.XXX_TODO("wrong upload")
 	}
 
-	slices.SortFunc(input.Part, func(a, b APIPart) bool {
-		return a.PartNumber < b.PartNumber
+	slices.SortFunc(input.Part, func(a, b APIPart) int {
+		return a.PartNumber - b.PartNumber
 	})
 
 	object := upload.Object

@@ -252,6 +252,13 @@ func (k *KMS) toAPI(key *key.Key) APIKeyMetadata {
 	}
 }
 
+func (k *KMS) maybeIdAsArn(keyId string) string {
+	if strings.HasPrefix(keyId, "arn:") {
+		return keyId
+	}
+	return k.arnGenerator.Generate("kms", "key", keyId)
+}
+
 func (k *KMS) lockedGetKey(keyId string) *key.Key {
 	// There are 4 possible ways to specify a key:
 	// - Key ID: 1234abcd-12ab-34cd-56ef-1234567890ab
@@ -283,34 +290,59 @@ var aliasNameRe = regexp.MustCompile("^[a-zA-Z0-9/_-]+$")
 
 // https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateAlias.html
 func (k *KMS) CreateAlias(input CreateAliasInput) (*CreateAliasOutput, *awserrors.Error) {
-	if !strings.HasPrefix(input.AliasName, "alias/") {
-		return nil, ValidationException(`Alias must start with the prefix "alias/". Please see https://docs.aws.amazon.com/kms/latest/developerguide/kms-alias.html`)
-	}
+	var validationErrors []string
 
 	if strings.HasPrefix(input.AliasName, "alias/aws/") {
 		return nil, NotAuthorizedException("The alias name for a customer managed CMK cannot begin with alias/aws/.")
 	}
 
 	if len(input.AliasName) > 256 {
-		return nil, ValidationException(fmt.Sprintf(
-			"1 validation error detected: Value '%s' at 'aliasName' failed to satisfy constraint: Member must have length less than or equal to 256",
+		validationErrors = append(validationErrors, fmt.Sprintf(
+			"Value '%s' at 'aliasName' failed to satisfy constraint: Member must have length less than or equal to 256",
 			input.AliasName,
 		))
 	}
 
 	if !aliasNameRe.MatchString(input.AliasName) {
-		return nil, ValidationException(fmt.Sprintf(
-			"1 validation error detected: Value '%s' at 'aliasName' failed to satisfy constraint: Member must satisfy regular expression pattern: ^[a-zA-Z0-9:/_-]+$",
+		validationErrors = append(validationErrors, fmt.Sprintf(
+			"Value '%s' at 'aliasName' failed to satisfy constraint: Member must satisfy regular expression pattern: ^[a-zA-Z0-9:/_-]+$",
 			input.AliasName,
 		))
+	}
+
+	if len(validationErrors) > 0 {
+		plural := ""
+		if len(validationErrors) > 1 {
+			plural = "s"
+		}
+		return nil, ValidationException(fmt.Sprintf(
+			"%d validation error%s detected: %s",
+			len(validationErrors), plural, strings.Join(validationErrors, "; ")),
+		)
+	}
+
+	// Yeah these ValidationExceptions don't increase the count. Nice.
+	if strings.HasPrefix(input.TargetKeyId, "alias/") {
+		return nil, ValidationException("Aliases must refer to keys. Not aliases")
+	}
+
+	if !strings.HasPrefix(input.AliasName, "alias/") {
+		return nil, ValidationException(
+			`Alias must start with the prefix "alias/". Please see https://docs.aws.amazon.com/kms/latest/developerguide/kms-alias.html`)
 	}
 
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
+	_, err := uuid.FromString(input.TargetKeyId)
+	if err != nil {
+		return nil, NotFoundException("Invalid keyId " + input.TargetKeyId)
+	}
 	key := k.lockedGetKey(input.TargetKeyId)
 	if key == nil {
-		return nil, NotFoundException("Invalid keyId" + input.TargetKeyId)
+		// TODO(zbarsky): this is a bit backwards, we should probably store keys based on their ARN
+		return nil, NotFoundException(fmt.Sprintf(
+			"Key '%s' does not exist", k.maybeIdAsArn(input.TargetKeyId)))
 	}
 
 	aliasName := strings.TrimPrefix(input.AliasName, "alias/")
@@ -323,7 +355,7 @@ func (k *KMS) CreateAlias(input CreateAliasInput) (*CreateAliasOutput, *awserror
 
 	k.aliases[aliasName] = key.Id()
 
-	err := k.persistAliases()
+	err = k.persistAliases()
 	if err != nil {
 		return nil, KMSInternalException(err.Error())
 	}

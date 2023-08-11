@@ -158,6 +158,8 @@ func TestCreateAlias(t *testing.T) {
 		"overly long alias name":             {AliasName: aws.String("alias/" + strings.Repeat("a", 254))},
 		"invalid char in alias name":         {AliasName: aws.String("alias/name?")},
 		"overly long and invalid alias name": {AliasName: aws.String("alias/" + strings.Repeat("?", 254))},
+		"alias target; long and invalid alias name": {AliasName: aws.String("alias/" + strings.Repeat("?", 254)),
+			TargetKeyId: aws.String("alias/duplicate")},
 
 		"good alias name": {AliasName: aws.String("alias/good")},
 		"long alias name": {AliasName: aws.String("alias/" + strings.Repeat("a", 245))},
@@ -169,22 +171,41 @@ func TestCreateAlias(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		createAliasInput := &kms.CreateAliasInput{
+			TargetKeyId: key.KeyMetadata.KeyId,
+			AliasName:   aws.String("alias/duplicate"),
+		}
+		_, err = client.CreateAlias(context.Background(), createAliasInput)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		t.Run("already exists", func(t *testing.T) {
-			input := &kms.CreateAliasInput{
-				TargetKeyId: key.KeyMetadata.KeyId,
-				AliasName:   aws.String("alias/duplicate"),
-			}
-			_, err := client.CreateAlias(context.Background(), input)
-			if err != nil {
-				t.Fatal(err)
-			}
-			resp, err := client.CreateAlias(context.Background(), input)
+			resp, err := client.CreateAlias(context.Background(), createAliasInput)
+			checkResult(t, resp, err)
+		})
+
+		t.Run("target cannot be alias", func(t *testing.T) {
+			resp, err := client.CreateAlias(context.Background(), &kms.CreateAliasInput{
+				TargetKeyId: aws.String("alias/duplicate"),
+				AliasName:   aws.String("alias/nonexistant"),
+			})
+
 			checkResult(t, resp, err)
 		})
 
 		t.Run("target doesn't exists", func(t *testing.T) {
 			resp, err := client.CreateAlias(context.Background(), &kms.CreateAliasInput{
 				TargetKeyId: aws.String("6e7c7e7a-b9ae-41af-8a1f-227a3ed1e398"),
+				AliasName:   aws.String("alias/nonexistant"),
+			})
+
+			checkResult(t, resp, err)
+		})
+
+		t.Run("target invalid id", func(t *testing.T) {
+			resp, err := client.CreateAlias(context.Background(), &kms.CreateAliasInput{
+				TargetKeyId: aws.String("6e7c7e7a-8a1f-227a3ed1e398"),
 				AliasName:   aws.String("alias/nonexistant"),
 			})
 
@@ -214,48 +235,52 @@ func withClient(fn func(client *kms.Client)) {
 }
 
 func checkResult(t *testing.T, resp any, err error, cmpRespOptions ...cmp.Option) {
+	var gotErr *APIError
 	if err != nil {
 		var apiErr smithy.APIError
 		if !errors.As(err, &apiErr) {
-			t.Fatal("unwant error", err)
+			t.Fatal("unwanted error", err)
 		}
-		gotErr := &APIError{
+		gotErr = &APIError{
 			Code:    apiErr.ErrorCode(),
 			Message: apiErr.ErrorMessage(),
 			Fault:   apiErr.ErrorFault().String(),
 		}
-		if generateSnapshot {
-			snapshots[t.Name()] = APIResponse{
-				Err: gotErr,
-			}
-		} else {
-			wantErr := snapshots[t.Name()].Err
-			if !cmp.Equal(gotErr, wantErr) {
-				t.Fatal(cmp.Diff(gotErr, wantErr))
-			}
+	}
+
+	if generateSnapshot {
+		snapshots[t.Name()] = APIResponse{
+			Err:  gotErr,
+			Resp: resp,
+		}
+		return
+	}
+
+	var gotResp map[string]interface{}
+	if resp != nil {
+		data, err := json.Marshal(resp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = json.Unmarshal(data, &gotResp)
+		if err != nil {
+			t.Fatal(err)
 		}
 	} else {
-		if generateSnapshot {
-			snapshots[t.Name()] = APIResponse{
-				Resp: resp,
-			}
-		} else {
-			wantResp := snapshots[t.Name()].Resp.(map[string]interface{})
+		gotResp = nil
+	}
 
-			data, err := json.Marshal(resp)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var gotResp map[string]interface{}
-			err = json.Unmarshal(data, &gotResp)
-			if err != nil {
-				t.Fatal(err)
-			}
+	wantErr := snapshots[t.Name()].Err
+	if !cmp.Equal(gotErr, wantErr) {
+		t.Fatal(cmp.Diff(gotErr, wantErr))
+	}
 
-			diff := cmp.Diff(gotResp, wantResp, cmpRespOptions...)
-			if diff != "" {
-				t.Fatal(diff)
-			}
-		}
+	wantResp := snapshots[t.Name()].Resp
+	if wantResp == nil {
+		wantResp = map[string]interface{}(nil)
+	}
+	diff := cmp.Diff(gotResp, wantResp, cmpRespOptions...)
+	if diff != "" {
+		t.Fatal(diff)
 	}
 }

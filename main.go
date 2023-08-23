@@ -17,6 +17,7 @@ import (
 	"aws-in-a-box/services/kinesis"
 	"aws-in-a-box/services/kms"
 	"aws-in-a-box/services/s3"
+	"aws-in-a-box/services/sqs"
 )
 
 func versionString() string {
@@ -62,6 +63,8 @@ func main() {
 
 	enableS3 := flag.Bool("experimental_enableS3", true, "Enable S3 service")
 	s3InitialBuckets := flag.String("s3InitialBuckets", "", "Buckets to create at startup. Example: bucket1,bucket2,bucket3")
+
+	enableSQS := flag.Bool("enableSQS", true, "Enable SQS service")
 
 	flag.Parse()
 
@@ -130,6 +133,16 @@ func main() {
 		d := dynamodb.New(logger, arnGenerator)
 		d.RegisterHTTPHandlers(logger, methodRegistry)
 		logger.Info("Enabled DynamoDB (EXPERIMENTAL!!!)")
+	}
+
+	if *enableSQS {
+		logger := logger.With("service", "dynamodb")
+		s := sqs.New(sqs.Options{
+			Logger:       logger,
+			ArnGenerator: arnGenerator,
+		})
+		s.RegisterHTTPHandlers(logger, methodRegistry)
+		logger.Info("Enabled SQS")
 	}
 
 	handlerChain := []server.HandlerFunc{server.HandlerFuncFromRegistry(logger, methodRegistry)}

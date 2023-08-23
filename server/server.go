@@ -3,10 +3,10 @@ package server
 import (
 	"bytes"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/gofrs/uuid/v5"
-	"golang.org/x/exp/slog"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )

@@ -1,6 +1,6 @@
 module aws-in-a-box
 
-go 1.20
+go 1.21
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.20.0
@@ -11,7 +11,6 @@ require (
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/gofrs/uuid/v5 v5.0.0
 	github.com/google/go-cmp v0.5.9
-	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b
 	golang.org/x/net v0.14.0
 )
 

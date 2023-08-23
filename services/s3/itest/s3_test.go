@@ -3,6 +3,7 @@ package itest
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"reflect"
@@ -13,7 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/server"
 	s3Impl "aws-in-a-box/services/s3"

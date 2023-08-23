@@ -3,9 +3,8 @@ package kinesis
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"time"
-
-	"golang.org/x/exp/slices"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/awserrors"

@@ -3,6 +3,7 @@ package itest
 import (
 	"bytes"
 	"context"
+	"log/slog"
 	"net"
 	"net/http"
 	"testing"
@@ -10,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
-	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/server"

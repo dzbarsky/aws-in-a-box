@@ -3,13 +3,12 @@ package kinesis
 import (
 	"crypto/md5"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/awserrors"

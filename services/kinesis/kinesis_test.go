@@ -1,11 +1,10 @@
 package kinesis
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
-
-	"golang.org/x/exp/slices"
 
 	"aws-in-a-box/arn"
 )

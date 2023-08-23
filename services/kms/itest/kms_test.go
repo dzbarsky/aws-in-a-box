@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -15,7 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/aws/smithy-go"
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/server"

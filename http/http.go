@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/fxamacker/cbor/v2"
-	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/awserrors"
 )

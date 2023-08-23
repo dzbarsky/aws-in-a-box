@@ -3,12 +3,11 @@ package s3
 import (
 	"encoding/xml"
 	"io"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
-
-	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/awserrors"
 )

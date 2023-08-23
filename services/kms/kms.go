@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -24,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
-	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/atomicfile"

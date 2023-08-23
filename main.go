@@ -3,12 +3,11 @@ package main
 import (
 	"flag"
 	"log"
+	"log/slog"
 	"os"
 	"runtime/debug"
 	"strings"
 	"time"
-
-	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/http"

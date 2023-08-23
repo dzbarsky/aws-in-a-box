@@ -13,11 +13,10 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"maps"
 	"os"
+	"slices"
 	"time"
-
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	"aws-in-a-box/atomicfile"
 	"aws-in-a-box/services/kms/types"

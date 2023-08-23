@@ -1,10 +1,9 @@
 package dynamodb
 
 import (
+	"log/slog"
 	"reflect"
 	"sync"
-
-	"golang.org/x/exp/slog"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/awserrors"

@@ -1,7 +1,7 @@
 package sqs
 
 import (
-	"golang.org/x/exp/slog"
+	"log/slog"
 
 	"aws-in-a-box/http"
 )

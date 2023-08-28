@@ -134,17 +134,17 @@ func main() {
 		logger.Info("Enabled DynamoDB (EXPERIMENTAL!!!)")
 	}
 
+	handlerChain := []server.HandlerFunc{server.HandlerFuncFromRegistry(logger, methodRegistry)}
+
 	if *enableSQS {
-		logger := logger.With("service", "dynamodb")
+		logger := logger.With("service", "sqs")
 		s := sqs.New(sqs.Options{
 			Logger:       logger,
 			ArnGenerator: arnGenerator,
 		})
-		s.RegisterHTTPHandlers(logger, methodRegistry)
 		logger.Info("Enabled SQS")
+		handlerChain = append(handlerChain, sqs.NewHandler(logger, s))
 	}
-
-	handlerChain := []server.HandlerFunc{server.HandlerFuncFromRegistry(logger, methodRegistry)}
 
 	if *enableS3 {
 		logger := logger.With("service", "s3")

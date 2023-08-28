@@ -15,3 +15,7 @@ func XXXTodoException(message string) *awserrors.Error {
 func QueueNameExists(message string) *awserrors.Error {
 	return awserrors.Generate400Exception("QueueNameExists", message)
 }
+
+func QueueDoesNotExist(message string) *awserrors.Error {
+	return awserrors.Generate400Exception("QueueDoesNotExist", message)
+}

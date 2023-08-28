@@ -2,12 +2,10 @@ package sqs
 
 import (
 	"log/slog"
-
-	"aws-in-a-box/http"
+	"net/http"
 )
 
-const service = "TODO"
-
-func (s *SQS) RegisterHTTPHandlers(logger *slog.Logger, methodRegistry http.Registry) {
-	http.Register(logger, methodRegistry, service, "CreateQueue", s.CreateQueue)
+func registerHTTPHandlers(logger *slog.Logger, registry map[string]http.HandlerFunc, s *SQS) {
+	register(logger, registry, "CreateQueue", s.CreateQueue)
+	register(logger, registry, "SendMessage", s.SendMessage)
 }

@@ -1,6 +1,8 @@
 package sqs
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"log/slog"
 	"maps"
 	"sync"
@@ -25,7 +27,7 @@ type SQS struct {
 	arnGenerator arn.Generator
 
 	mu     sync.Mutex
-	queues map[string]Queue
+	queues map[string]*Queue
 	tags   map[string]string
 }
 
@@ -42,6 +44,7 @@ func New(options Options) *SQS {
 	s := &SQS{
 		logger:       options.Logger,
 		arnGenerator: options.ArnGenerator,
+		queues:       make(map[string]*Queue),
 	}
 
 	return s
@@ -53,7 +56,7 @@ func (s *SQS) CreateQueue(input CreateQueueInput) (*CreateQueueOutput, *awserror
 	defer s.mu.Unlock()
 
 	if queue, ok := s.queues[input.QueueName]; ok {
-		if maps.Equal(queue.Attributes, input.Attributes) {
+		if maps.Equal(queue.Attributes, input.Attribute) {
 			return &CreateQueueOutput{
 				QueueUrl: queue.URL,
 			}, nil
@@ -61,11 +64,38 @@ func (s *SQS) CreateQueue(input CreateQueueInput) (*CreateQueueOutput, *awserror
 		return nil, QueueNameExists("")
 	}
 
-	s.queues[input.QueueName] = Queue{
-		Attributes: input.Attributes,
-		Tags:       input.Tags,
-		URL:        "TODO",
+	// TODO: We should make these not match to catch mistakes.
+	// But this is expedient for now.
+	url := input.QueueName
+
+	s.queues[input.QueueName] = &Queue{
+		Attributes: input.Attribute,
+		Tags:       input.Tag,
+		URL:        url,
 	}
 
-	return nil, nil
+	return &CreateQueueOutput{
+		QueueUrl: url,
+	}, nil
+}
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SendMessage.html
+func (s *SQS) SendMessage(input SendMessageInput) (*SendMessageOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	queue, ok := s.queues[input.QueueUrl]
+	if !ok {
+		return nil, QueueDoesNotExist("")
+	}
+	_ = queue
+
+	return &SendMessageOutput{
+		MD5OfMessageBody: hexMD5([]byte(input.MessageBody)),
+	}, nil
+}
+
+func hexMD5(data []byte) string {
+	hash := md5.Sum(data)
+	return hex.EncodeToString(hash[:])
 }

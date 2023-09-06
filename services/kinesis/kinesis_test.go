@@ -273,3 +273,40 @@ func TestClip(t *testing.T) {
 		t.Fatal("bad clip")
 	}
 }
+
+func TestListStreams(t *testing.T) {
+	k := New(Options{ArnGenerator: generator})
+	_, err := k.CreateStream(CreateStreamInput{
+		StreamName: "dream1",
+		ShardCount: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = k.CreateStream(CreateStreamInput{
+		StreamName: "stream1",
+		ShardCount: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := k.ListStreams(ListStreamsInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(output.StreamNames) != 2 {
+		t.Fatal("Bad Streams", output.StreamNames)
+	}
+
+	output, err = k.ListStreams(ListStreamsInput{
+		ExclusiveStartStreamName: "dream1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(output.StreamNames) != 1 {
+		t.Fatal("Bad Streams", output.StreamNames)
+	}
+}

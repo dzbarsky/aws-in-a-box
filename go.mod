@@ -26,5 +26,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.24.5
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
 	golang.org/x/text v0.12.0 // indirect
 )

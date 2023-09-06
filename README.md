@@ -45,7 +45,7 @@ There is no persistence for Kinesis data.
 | IncreaseStreamRetentionPeriod | ✅ Supported    |                                           |
 | ListShards                    | ✅ Supported    |                                           |
 | ListStreamConsumers           | ❌ Unsupported  |                                           |
-| ListStreams                   | ❌ Unsupported  |                                           |
+| ListStreams                   | ✅ Supported    |                                           |
 | ListTagsForStream             | ✅ Supported    |                                           |
 | MergeShards                   | ❌ Unsupported  | No support for merging/splitting yet.     |
 | PutRecord                     | ✅ Supported    |                                           |

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,6 +13,8 @@ import (
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/awserrors"
+
+	"golang.org/x/exp/maps"
 )
 
 var (
@@ -416,6 +419,33 @@ func (k *Kinesis) ListShards(input ListShardsInput) (*ListShardsOutput, *awserro
 		})
 	}
 	return out, nil
+}
+
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_ListStreams.html
+func (k *Kinesis) ListStreams(input ListStreamsInput) (*ListStreamsOutput, *awserrors.Error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	streamNames := maps.Keys(k.streams)
+	sort.Strings(streamNames)
+
+	output := &ListStreamsOutput{}
+	for _, name := range streamNames {
+		if name <= input.ExclusiveStartStreamName {
+			continue
+		}
+
+		output.StreamNames = append(output.StreamNames, name)
+		stream := k.streams[name]
+		output.StreamSummaries = append(output.StreamSummaries, APIStreamSummary{
+			StreamARN:               k.arnForStream(stream.Name),
+			StreamCreationTimestamp: stream.CreationTimestamp,
+			StreamName:              name,
+			StreamStatus:            string(stream.Status),
+		})
+	}
+
+	return output, nil
 }
 
 // https://docs.aws.amazon.com/kinesis/latest/APIReference/API_AddTagsToStream.html

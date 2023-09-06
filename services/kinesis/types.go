@@ -54,6 +54,28 @@ type GetRecordsOutput struct {
 	Records            []APIRecord
 }
 
+type ListStreamsInput struct {
+	ExclusiveStartStreamName string
+	Limit                    int
+	NextToken                string
+}
+
+type ListStreamsOutput struct {
+	// TODO: HasMoreStreams bool
+	// TODO: NextToken string
+	StreamNames     []string
+	StreamSummaries []APIStreamSummary
+}
+
+type APIStreamSummary struct {
+	StreamARN string
+	// Unix Nanos?
+	StreamCreationTimestamp int64
+	// TODO: StreamModeDetails:
+	StreamName   string
+	StreamStatus string
+}
+
 type ListShardsInput struct {
 	StreamName  string
 	StreamARN   string

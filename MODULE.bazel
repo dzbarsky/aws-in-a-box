@@ -1,6 +1,6 @@
 module(
     name = "aws-in-a-box",
-    version = "0.0.39",
+    version = "0.0.40",
     compatibility_level = 1,
 )
 

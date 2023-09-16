@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "s3",
+    srcs = [
+        "errors.go",
+        "handler.go",
+        "s3.go",
+        "types.go",
+    ],
+    importpath = "aws-in-a-box/services/s3",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//atomicfile",
+        "//awserrors",
+        "@com_github_gofrs_uuid_v5//:uuid",
+    ],
+)

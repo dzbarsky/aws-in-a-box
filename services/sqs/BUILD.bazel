@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sqs",
+    srcs = [
+        "errors.go",
+        "handler.go",
+        "http.go",
+        "sqs.go",
+        "types.go",
+    ],
+    importpath = "aws-in-a-box/services/sqs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//arn",
+        "//awserrors",
+        "@com_github_gofrs_uuid_v5//:uuid",
+    ],
+)

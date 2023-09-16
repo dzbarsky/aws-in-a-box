@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dynamodb",
+    srcs = [
+        "dynamodb.go",
+        "http.go",
+        "types.go",
+    ],
+    importpath = "aws-in-a-box/services/dynamodb",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//arn",
+        "//awserrors",
+        "//http",
+    ],
+)

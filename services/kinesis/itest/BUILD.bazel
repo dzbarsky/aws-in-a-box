@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "itest_test",
+    srcs = ["consumer_test.go"],
+    deps = [
+        "//arn",
+        "//server",
+        "//services/kinesis",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_kinesis//:kinesis",
+        "@com_github_aws_aws_sdk_go_v2_service_kinesis//types",
+    ],
+)

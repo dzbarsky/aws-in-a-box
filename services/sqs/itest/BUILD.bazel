@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "itest_test",
+    srcs = ["sqs_test.go"],
+    deps = [
+        "//server",
+        "//services/sqs",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_sqs//:sqs",
+    ],
+)

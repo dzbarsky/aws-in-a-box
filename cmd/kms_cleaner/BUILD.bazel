@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "kms_cleaner_lib",
+    srcs = ["main.go"],
+    importpath = "aws-in-a-box/cmd/kms_cleaner",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_kms//:kms",
+    ],
+)
+
+go_binary(
+    name = "kms_cleaner",
+    embed = [":kms_cleaner_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -22,7 +22,7 @@ import (
 func versionString() string {
 	buildinfo, ok := debug.ReadBuildInfo()
 	if !ok {
-		log.Fatal("Could not read build info")
+		return ""
 	}
 	revision := "unknown"
 	dirty := false
@@ -84,7 +84,14 @@ func main() {
 	textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: level,
 	})
-	logger := slog.New(textHandler).With("version", versionString())
+	logger := slog.New(textHandler)
+
+	version := versionString()
+	if version == "" {
+		logger.Warn("Could not read build info")
+	} else {
+		logger = logger.With("version", versionString())
+	}
 
 	methodRegistry := make(http.Registry)
 

@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "atomicfile",
+    srcs = ["atomicfile.go"],
+    importpath = "aws-in-a-box/atomicfile",
+    visibility = ["//visibility:public"],
+)

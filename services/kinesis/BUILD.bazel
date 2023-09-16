@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kinesis",
+    srcs = [
+        "consumer.go",
+        "errors.go",
+        "http.go",
+        "kinesis.go",
+        "types.go",
+    ],
+    importpath = "aws-in-a-box/services/kinesis",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//arn",
+        "//awserrors",
+        "//http",
+        "@org_golang_x_exp//maps",
+    ],
+)
+
+go_test(
+    name = "kinesis_test",
+    srcs = [
+        "consumer_test.go",
+        "kinesis_test.go",
+    ],
+    embed = [":kinesis"],
+    deps = [
+        "//arn",
+        "//awserrors",
+    ],
+)

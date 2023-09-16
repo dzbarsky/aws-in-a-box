@@ -16,6 +16,49 @@ Aws-in-a-box runs on HTTP (not HTTPS) but supports HTTP2 upgrade with h2c (HTTP 
 - Single statically-linked 7MB native binary. No interpereter/runtime hell. (There are also 3MB compressed [docker images](https://hub.docker.com/r/dzbarsky/aws-in-a-box/tags) if you prefer)
 - Simple persistence scheme using atomic file writes. When using the native binary, no more broken persistent docker volumes
 
+## Usage
+The easiest way to consume this project is from pre-built artifacts on the release page or the docker image.
+You can also build from source with either go native tooling or with Bazel, see Development section.
+
+```
+  -addr string
+    	Address to run on (default "localhost:4569")
+  -enableKMS
+    	Enable Kinesis service (default true)
+  -enableKinesis
+    	Enable Kinesis service (default true)
+  -enableSQS
+    	Enable SQS service (default true)
+  -experimental_enableDynamoDB
+    	Enable DynamoDB service (default true)
+  -experimental_enableS3
+    	Enable S3 service (default true)
+  -kinesisDefaultDuration duration
+    	How long to retain messages. Can be used to control memory usage. After creation, retention can be adjusted with [Increase/Decrease]StreamRetentionPeriod (default 24h0m0s)
+  -kinesisInitialShardsPerStream int
+    	How many shards to create for each stream listed in -kinesisInitialStreams (default 2)
+  -kinesisInitialStreams string
+    	Streams to create at startup. Example: stream1,stream2,stream3
+  -kinesisStreamCreateDuration duration
+    	How long a new Kinesis stream stays in CREATING status (default 5s)
+  -kinesisStreamDeleteDuration duration
+    	How long a deleted Kinesis stream stays in DELETING status (default 5s)
+  -logLevel string
+    	debug/info/warn/error (default "debug")
+  -persistDir string
+    	Directory to persist data to. If empty, data is not persisted.
+  -s3InitialBuckets string
+    	Buckets to create at startup. Example: bucket1,bucket2,bucket3
+```
+
+## Development
+### Running the service
+`go run .`
+`bazel run //:aws-in-a-box`
+
+### Running tests
+`go test ./...`
+`bazel test //...`
 <br>
 
 ## Kinesis Support

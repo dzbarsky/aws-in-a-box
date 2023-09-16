@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kms",
+    srcs = [
+        "errors.go",
+        "http.go",
+        "kms.go",
+        "types.go",
+    ],
+    importpath = "aws-in-a-box/services/kms",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//arn",
+        "//atomicfile",
+        "//awserrors",
+        "//http",
+        "//services/kms/key",
+        "//services/kms/types",
+        "@com_github_gofrs_uuid_v5//:uuid",
+    ],
+)
+
+go_test(
+    name = "kms_test",
+    srcs = ["kms_test.go"],
+    embed = [":kms"],
+    deps = [
+        "//arn",
+        "//services/kms/types",
+    ],
+)

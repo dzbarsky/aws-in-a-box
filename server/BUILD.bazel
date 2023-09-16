@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "server",
+    srcs = ["server.go"],
+    importpath = "aws-in-a-box/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gofrs_uuid_v5//:uuid",
+        "@org_golang_x_net//http2",
+        "@org_golang_x_net//http2/h2c",
+    ],
+)

@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "key",
+    srcs = [
+        "aes.go",
+        "ecc.go",
+        "error.go",
+        "hmac.go",
+        "key.go",
+        "rsa.go",
+    ],
+    importpath = "aws-in-a-box/services/kms/key",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//atomicfile",
+        "//services/kms/types",
+    ],
+)
+
+go_test(
+    name = "key_test",
+    srcs = ["key_test.go"],
+    embed = [":key"],
+    deps = ["//services/kms/types"],
+)

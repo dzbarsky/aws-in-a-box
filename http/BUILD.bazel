@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "http",
+    srcs = ["http.go"],
+    importpath = "aws-in-a-box/http",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//awserrors",
+        "@com_github_fxamacker_cbor_v2//:cbor",
+    ],
+)

@@ -40,3 +40,34 @@ type APIAttribute struct {
 	StringListValues []string
 	StringValue      string
 }
+
+type TagQueueInput struct {
+	QueueUrl string
+	Tags     map[string]string
+}
+
+type TagQueueOutput struct{}
+
+type UntagQueueInput struct {
+	QueueUrl string
+	TagKeys  []string
+}
+
+type UntagQueueOutput struct{}
+
+type GetQueueUrlInput struct {
+	QueueName string
+}
+
+type GetQueueUrlOutput struct {
+	QueueUrl string
+}
+
+type ListQueuesInput struct {
+	MaxResults      int
+	QueueNamePrefix string
+}
+
+type ListQueuesOutput struct {
+	QueueUrls []string `xml:"queueUrls"`
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"maps"
+	"strings"
 	"sync"
 
 	"aws-in-a-box/arn"
@@ -26,9 +27,8 @@ type SQS struct {
 	logger       *slog.Logger
 	arnGenerator arn.Generator
 
-	mu     sync.Mutex
-	queues map[string]*Queue
-	tags   map[string]string
+	mu           sync.Mutex
+	queuesByName map[string]*Queue
 }
 
 type Options struct {
@@ -44,7 +44,7 @@ func New(options Options) *SQS {
 	s := &SQS{
 		logger:       options.Logger,
 		arnGenerator: options.ArnGenerator,
-		queues:       make(map[string]*Queue),
+		queuesByName: make(map[string]*Queue),
 	}
 
 	return s
@@ -55,7 +55,7 @@ func (s *SQS) CreateQueue(input CreateQueueInput) (*CreateQueueOutput, *awserror
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if queue, ok := s.queues[input.QueueName]; ok {
+	if queue, ok := s.queuesByName[input.QueueName]; ok {
 		if maps.Equal(queue.Attributes, input.Attribute) {
 			return &CreateQueueOutput{
 				QueueUrl: queue.URL,
@@ -64,11 +64,9 @@ func (s *SQS) CreateQueue(input CreateQueueInput) (*CreateQueueOutput, *awserror
 		return nil, QueueNameExists("")
 	}
 
-	// TODO: We should make these not match to catch mistakes.
-	// But this is expedient for now.
-	url := input.QueueName
+	url := s.getQueueUrl(input.QueueName)
 
-	s.queues[input.QueueName] = &Queue{
+	s.queuesByName[input.QueueName] = &Queue{
 		Attributes: input.Attribute,
 		Tags:       input.Tag,
 		URL:        url,
@@ -79,12 +77,24 @@ func (s *SQS) CreateQueue(input CreateQueueInput) (*CreateQueueOutput, *awserror
 	}, nil
 }
 
+func (s *SQS) getQueueUrl(queueName string) string {
+	// TODO: We should make these not match to catch mistakes.
+	// But this is expedient for now.
+	return queueName
+}
+
+func (s *SQS) getQueueName(queueUrl string) string {
+	// TODO: We should make these not match to catch mistakes.
+	// But this is expedient for now.
+	return queueUrl
+}
+
 // https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SendMessage.html
 func (s *SQS) SendMessage(input SendMessageInput) (*SendMessageOutput, *awserrors.Error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	queue, ok := s.queues[input.QueueUrl]
+	queue, ok := s.queuesByName[s.getQueueName(input.QueueUrl)]
 	if !ok {
 		return nil, QueueDoesNotExist("")
 	}
@@ -98,4 +108,72 @@ func (s *SQS) SendMessage(input SendMessageInput) (*SendMessageOutput, *awserror
 func hexMD5(data []byte) string {
 	hash := md5.Sum(data)
 	return hex.EncodeToString(hash[:])
+}
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_TagQueue.html
+func (s *SQS) TagQueue(input TagQueueInput) (*TagQueueOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	queue, ok := s.queuesByName[s.getQueueName(input.QueueUrl)]
+	if !ok {
+		return nil, QueueDoesNotExist("")
+	}
+
+	for k, v := range input.Tags {
+		queue.Tags[k] = v
+	}
+
+	return nil, nil
+}
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_UntagQueue.html
+func (s *SQS) UntagQueue(input UntagQueueInput) (*UntagQueueOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	queue, ok := s.queuesByName[s.getQueueName(input.QueueUrl)]
+	if !ok {
+		return nil, QueueDoesNotExist("")
+	}
+
+	for _, key := range input.TagKeys {
+		delete(queue.Tags, key)
+	}
+
+	return nil, nil
+}
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_GetQueueUrl.html
+func (s *SQS) GetQueueUrl(input GetQueueUrlInput) (*GetQueueUrlOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return &GetQueueUrlOutput{
+		QueueUrl: s.getQueueUrl(input.QueueName),
+	}, nil
+}
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_ListQueues.html
+func (s *SQS) ListQueues(input ListQueuesInput) (*ListQueuesOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if input.MaxResults == 0 {
+		input.MaxResults = 1000
+	}
+
+	output := &ListQueuesOutput{}
+
+	for name := range s.queuesByName {
+		if strings.HasPrefix(name, input.QueueNamePrefix) {
+			// TODO: implement pagination
+			if len(output.QueueUrls) > input.MaxResults {
+				return nil, awserrors.Generate400Exception("GAH", "too many results")
+			}
+			output.QueueUrls = append(output.QueueUrls, s.getQueueUrl(name))
+		}
+	}
+
+	return output, nil
 }

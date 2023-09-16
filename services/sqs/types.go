@@ -71,3 +71,21 @@ type ListQueuesInput struct {
 type ListQueuesOutput struct {
 	QueueUrls []string `xml:"queueUrls"`
 }
+
+type GetQueueAttributesInput struct {
+	attributeNames []string
+	//`query:"attributeNames"`
+	QueueUrl string
+}
+
+type GetQueueAttributesOutput struct {
+	Attributes map[string]string `xml:"attributes"`
+}
+
+type ListQueueTagsInput struct {
+	QueueUrl string
+}
+
+type ListQueueTagsOutput struct {
+	Tags map[string]string
+}

@@ -177,3 +177,36 @@ func (s *SQS) ListQueues(input ListQueuesInput) (*ListQueuesOutput, *awserrors.E
 
 	return output, nil
 }
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_GetQueueAttributes.html
+func (s *SQS) GetQueueAttributes(input GetQueueAttributesInput) (*GetQueueAttributesOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	queue, ok := s.queuesByName[s.getQueueName(input.QueueUrl)]
+	if !ok {
+		return nil, QueueDoesNotExist("")
+	}
+
+	output := &GetQueueAttributesOutput{}
+	for _, name := range input.attributeNames {
+		output.Attributes[name] = queue.Attributes[name]
+	}
+
+	return output, nil
+}
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_ListQueueTags.html
+func (s *SQS) ListQueueTags(input ListQueueTagsInput) (*ListQueueTagsOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	queue, ok := s.queuesByName[s.getQueueName(input.QueueUrl)]
+	if !ok {
+		return nil, QueueDoesNotExist("")
+	}
+
+	return &ListQueueTagsOutput{
+		Tags: queue.Tags,
+	}, nil
+}

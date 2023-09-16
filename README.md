@@ -7,6 +7,7 @@ Currently supported services (see below for full support details):
 - [Kinesis](https://docs.aws.amazon.com/kinesis/latest/APIReference/Welcome.html)
 - [KMS](https://docs.aws.amazon.com/kms/latest/APIReference/Welcome.html)
 - [S3](https://docs.aws.amazon.com/AmazonS3/latest/API/Welcome.html)
+- [SQS](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/Welcome.html)
 
 Aws-in-a-box runs on HTTP (not HTTPS) but supports HTTP2 upgrade with h2c (HTTP without TLS).
 
@@ -238,4 +239,38 @@ S3 blocks are persisted, but metadata is not. This will be fixed in the future.
 | UploadPart                                  | ✅ Supported    |                                    |
 | UploadPartCopy                              | ❌ Unsupported  |                                    |
 | WriteGetObjectResponse                      | ❌ Unsupported  |                                    |
+</details>
+
+<br>
+
+## SQS Support
+SQS support is in in-progress.
+<details>
+<summary>Click to expand the detailed support table</summary>
+
+| API                          | Support Status | Caveats/Notes |
+|------------------------------|----------------|---------------|
+| AddPermission                | ❌ Unsupported  |               |
+| CancelMessageMoveTask        | ❌ Unsupported  |               |
+| ChangeMessageVisibility      | ❌ Unsupported  |               |
+| ChangeMessageVisibilityBatch | ❌ Unsupported  |               |
+| CreateQueue                  | ✅ Supported    |               |
+| DeleteMessage                | ❌ Unsupported  |               |
+| DeleteMessageBatch           | ❌ Unsupported  |               |
+| DeleteQueue                  | ❌ Unsupported  |               |
+| GetQueueAttributes           | ✅ Supported    |               |
+| GetQueueUrl                  | ✅ Supported    |               |
+| ListDeadLetterSourceQueues   | ❌ Unsupported  |               |
+| ListMessageMoveTasks         | ❌ Unsupported  |               |
+| ListQueues                   | ✅ Supported    |               |
+| ListQueueTags                | ✅ Supported    |               |
+| PurgeQueue                   | ❌ Unsupported  |               |
+| ReceiveMessage               | ❌ Unsupported  |               |
+| RemovePermission             | ❌ Unsupported  |               |
+| SendMessage                  | ❌ Unsupported  |               |
+| SendMessageBatch             | ❌ Unsupported  |               |
+| SetQueueAttributes           | ❌ Unsupported  |               |
+| StartMessageMoveTask         | ❌ Unsupported  |               |
+| TagQueue                     | ✅ Supported    |               |
+| UntagQueue                   | ✅ Supported    |               |
 </details>

@@ -2,7 +2,7 @@ set -eux
 
 for GOOS in "windows" "linux" "darwin"; do
     for GOARCH in "amd64" "arm64"; do
-        CGO_ENABLED=0 go build -ldflags "-w" -trimpath -o "./aws-in-a-box-$GOOS-$GOARCH"
+        GOOS="$GOOS" GOARCH="$GOARCH" CGO_ENABLED=0 go build -ldflags "-w" -trimpath -o "./aws-in-a-box-$GOOS-$GOARCH"
     done
 done
 

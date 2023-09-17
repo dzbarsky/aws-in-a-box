@@ -89,3 +89,49 @@ type ListQueueTagsInput struct {
 type ListQueueTagsOutput struct {
 	Tags map[string]string
 }
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_ReceiveMessage.html#SQS-ReceiveMessage-request-AttributeNames
+type AttributeName string
+
+const (
+	All                              = AttributeName("All")
+	ApproximateFirstReceiveTimestamp = AttributeName("ApproximateFirstReceiveTimestamp")
+	ApproximateReceiveCount          = AttributeName("ApproximateReceiveCount")
+	AWSTraceHeader                   = AttributeName("AWSTraceHeader")
+	SenderId                         = AttributeName("SenderId")
+	SentTimestamp                    = AttributeName("SentTimestamp")
+	// TODO: this one not listedin https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_ReceiveMessage.html#SQS-ReceiveMessage-request-MessageSystemAttributeNames
+	SqsManagedSseEnabled     = AttributeName("SqsManagedSseEnabled")
+	MessageDeduplicationId   = AttributeName("MessageDeduplicationId")
+	MessageGroupId           = AttributeName("MessageGroupId")
+	SequenceNumber           = AttributeName("SequenceNumber")
+	DeadLetterQueueSourceArn = AttributeName("DeadLetterQueueSourceArn")
+	// TODO: there are more
+)
+
+type ReceiveMessageInput struct {
+	// Deprecated
+	AttributeNames              []AttributeName
+	MaxNumberOfMessages         int
+	MessageAttributeNames       []string
+	MessageSystemAttributeNames []AttributeName
+	QueueUrl                    string
+	// ReceiveRequestAttemptId
+	VisibilityTimeout int
+	WaitTimeSeconds   int
+}
+
+type ReceiveMessageOutput struct {
+	XMLName xml.Name `xml:"ReceiveMessageResult"`
+	Message []APIMessage
+}
+
+type APIMessage struct {
+	Attributes             map[string]string
+	Body                   string
+	MD5OfBody              string
+	MD5OfMessageAttributes string
+	MessageAttributes      map[string]APIAttribute
+	MessageId              string
+	ReceiptHandle          string
+}

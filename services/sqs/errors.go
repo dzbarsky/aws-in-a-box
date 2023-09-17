@@ -19,3 +19,7 @@ func QueueNameExists(message string) *awserrors.Error {
 func QueueDoesNotExist(message string) *awserrors.Error {
 	return awserrors.Generate400Exception("QueueDoesNotExist", message)
 }
+
+func ValidationException(message string) *awserrors.Error {
+	return awserrors.Generate400Exception("ValidationException", message)
+}

@@ -12,6 +12,11 @@ import (
 	"aws-in-a-box/awserrors"
 )
 
+type Message struct {
+	Body      string
+	MD5OfBody string
+}
+
 type Queue struct {
 	// Immutable
 	CreationTimestamp int64
@@ -19,7 +24,7 @@ type Queue struct {
 	URL               string
 
 	// Mutable
-	Messages []byte
+	Messages []*Message
 	Tags     map[string]string
 }
 
@@ -98,10 +103,15 @@ func (s *SQS) SendMessage(input SendMessageInput) (*SendMessageOutput, *awserror
 	if !ok {
 		return nil, QueueDoesNotExist("")
 	}
-	_ = queue
+
+	MD5OfBody := hexMD5([]byte(input.MessageBody))
+	queue.Messages = append(queue.Messages, &Message{
+		Body:      input.MessageBody,
+		MD5OfBody: MD5OfBody,
+	})
 
 	return &SendMessageOutput{
-		MD5OfMessageBody: hexMD5([]byte(input.MessageBody)),
+		MD5OfMessageBody: MD5OfBody,
 	}, nil
 }
 
@@ -209,4 +219,34 @@ func (s *SQS) ListQueueTags(input ListQueueTagsInput) (*ListQueueTagsOutput, *aw
 	return &ListQueueTagsOutput{
 		Tags: queue.Tags,
 	}, nil
+}
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_ReceiveMessage.html
+func (s *SQS) ReceiveMessage(input ReceiveMessageInput) (*ReceiveMessageOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if input.MaxNumberOfMessages == 0 {
+		input.MaxNumberOfMessages = 10
+	}
+	if input.MaxNumberOfMessages < 1 || input.MaxNumberOfMessages > 10 {
+		return nil, ValidationException("")
+	}
+
+	queue, ok := s.queuesByName[s.getQueueName(input.QueueUrl)]
+	if !ok {
+		return nil, QueueDoesNotExist("")
+	}
+
+	output := &ReceiveMessageOutput{}
+	for _, message := range queue.Messages {
+		// TODO: check visibility conditions
+
+		output.Message = append(output.Message, APIMessage{
+			Body:      message.Body,
+			MD5OfBody: message.MD5OfBody,
+		})
+	}
+
+	return output, nil
 }

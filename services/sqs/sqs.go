@@ -89,6 +89,21 @@ func (s *SQS) CreateQueue(input CreateQueueInput) (*CreateQueueOutput, *awserror
 	}, nil
 }
 
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_DeleteQueue.html
+func (s *SQS) DeleteQueue(input DeleteQueueInput) (*DeleteQueueOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	queueName := s.getQueueName(input.QueueUrl)
+	if _, ok := s.queuesByName[queueName]; !ok {
+		return nil, QueueDoesNotExist("")
+	}
+
+	delete(s.queuesByName, queueName)
+
+	return nil, nil
+}
+
 func (s *SQS) getQueueUrl(queueName string) string {
 	// TODO: We should make these not match to catch mistakes.
 	// But this is expedient for now.

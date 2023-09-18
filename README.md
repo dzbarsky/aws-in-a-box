@@ -291,29 +291,29 @@ SQS support is in in-progress.
 <details>
 <summary>Click to expand the detailed support table</summary>
 
-| API                          | Support Status | Caveats/Notes |
-|------------------------------|----------------|---------------|
-| AddPermission                | ❌ Unsupported  |               |
-| CancelMessageMoveTask        | ❌ Unsupported  |               |
-| ChangeMessageVisibility      | ❌ Unsupported  |               |
-| ChangeMessageVisibilityBatch | ❌ Unsupported  |               |
-| CreateQueue                  | ✅ Supported    |               |
-| DeleteMessage                | ❌ Unsupported  |               |
-| DeleteMessageBatch           | ❌ Unsupported  |               |
-| DeleteQueue                  | ❌ Unsupported  |               |
-| GetQueueAttributes           | ✅ Supported    |               |
-| GetQueueUrl                  | ✅ Supported    |               |
-| ListDeadLetterSourceQueues   | ❌ Unsupported  |               |
-| ListMessageMoveTasks         | ❌ Unsupported  |               |
-| ListQueues                   | ✅ Supported    |               |
-| ListQueueTags                | ✅ Supported    |               |
-| PurgeQueue                   | ❌ Unsupported  |               |
-| ReceiveMessage               | ❌ Unsupported  |               |
-| RemovePermission             | ❌ Unsupported  |               |
-| SendMessage                  | ❌ Unsupported  |               |
-| SendMessageBatch             | ❌ Unsupported  |               |
-| SetQueueAttributes           | ❌ Unsupported  |               |
-| StartMessageMoveTask         | ❌ Unsupported  |               |
-| TagQueue                     | ✅ Supported    |               |
-| UntagQueue                   | ✅ Supported    |               |
+| API                          | Support Status | Caveats/Notes      |
+|------------------------------|----------------|--------------------|
+| AddPermission                | ❌ Unsupported  |                    |
+| CancelMessageMoveTask        | ❌ Unsupported  |                    |
+| ChangeMessageVisibility      | ❌ Unsupported  |                    |
+| ChangeMessageVisibilityBatch | ❌ Unsupported  |                    |
+| CreateQueue                  | ✅ Supported    |                    |
+| DeleteMessage                | ❌ Unsupported  |                    |
+| DeleteMessageBatch           | ❌ Unsupported  |                    |
+| DeleteQueue                  | ✅ Supported    |                    |
+| GetQueueAttributes           | ✅ Supported    |                    |
+| GetQueueUrl                  | ✅ Supported    |                    |
+| ListDeadLetterSourceQueues   | ❌ Unsupported  |                    |
+| ListMessageMoveTasks         | ❌ Unsupported  |                    |
+| ListQueues                   | ✅ Supported    |                    |
+| ListQueueTags                | ✅ Supported    |                    |
+| PurgeQueue                   | ❌ Unsupported  |                    |
+| ReceiveMessage               | ✅ Supported    | wait not supported |
+| RemovePermission             | ❌ Unsupported  |                    |
+| SendMessage                  | ✅ Supported    |                    |
+| SendMessageBatch             | ❌ Unsupported  |                    |
+| SetQueueAttributes           | ❌ Unsupported  |                    |
+| StartMessageMoveTask         | ❌ Unsupported  |                    |
+| TagQueue                     | ✅ Supported    |                    |
+| UntagQueue                   | ✅ Supported    |                    |
 </details>

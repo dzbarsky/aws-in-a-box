@@ -13,6 +13,12 @@ type CreateQueueOutput struct {
 	QueueUrl string
 }
 
+type DeleteQueueInput struct {
+	QueueUrl string
+}
+
+type DeleteQueueOutput struct{}
+
 const AWSTraceHeaderAttributeName = "AWSTraceHeader"
 
 type SendMessageInput struct {

@@ -19,6 +19,10 @@ const (
 	defaultVisibilityTimeout    = 30 * time.Second
 	maxVisibilityTimeoutSeconds = 12 * 3600
 
+	defaultMaximumMessageSize = 262_144
+	minMaximumMessageSize     = 1_024
+	maxMaximumMessageSize     = 262_144
+
 	maxEntriesInDeleteBatch = 10
 	maxBatchEntryIdLength   = 80
 )
@@ -45,9 +49,12 @@ type Queue struct {
 	URL               string
 
 	// Mutable
-	Messages          []*Message
-	Tags              map[string]string
-	VisibilityTimeout time.Duration
+	Messages []*Message
+	Tags     map[string]string
+
+	// Attributes
+	VisibilityTimeout  time.Duration
+	MaximumMessageSize int
 }
 
 type SQS struct {
@@ -98,7 +105,8 @@ func (s *SQS) CreateQueue(input CreateQueueInput) (*CreateQueueOutput, *awserror
 		Tags:       input.Tag,
 		URL:        url,
 
-		VisibilityTimeout: defaultVisibilityTimeout,
+		VisibilityTimeout:  defaultVisibilityTimeout,
+		MaximumMessageSize: defaultMaximumMessageSize,
 	}
 
 	for k, v := range input.Attribute {
@@ -113,6 +121,17 @@ func (s *SQS) CreateQueue(input CreateQueueInput) (*CreateQueueOutput, *awserror
 			}
 
 			queue.VisibilityTimeout = time.Duration(timeout) * time.Second
+		} else if k == "MaximumMessageSize" {
+			size, err := strconv.Atoi(v)
+			if err != nil {
+				return nil, ValidationException(err.Error())
+			}
+
+			if size < minMaximumMessageSize || size > maxMaximumMessageSize {
+				return nil, ValidationException("Bad MaximumMessageSize")
+			}
+
+			queue.MaximumMessageSize = size
 		}
 	}
 
@@ -164,6 +183,10 @@ func (s *SQS) SendMessage(input SendMessageInput) (*SendMessageOutput, *awserror
 		if name != AWSTraceHeaderAttributeName {
 			return nil, ValidationException("Bad MessageSystemAttribute")
 		}
+	}
+
+	if len(input.MessageBody) > queue.MaximumMessageSize {
+		return nil, ValidationException("Message too long")
 	}
 
 	MD5OfBody := hexMD5([]byte(input.MessageBody))

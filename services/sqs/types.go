@@ -13,6 +13,8 @@ type CreateQueueOutput struct {
 	QueueUrl string
 }
 
+const AWSTraceHeaderAttributeName = "AWSTraceHeader"
+
 type SendMessageInput struct {
 	DelaySeconds            int
 	MessageAttributes       map[string]APIAttribute

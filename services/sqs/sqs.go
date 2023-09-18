@@ -13,8 +13,11 @@ import (
 )
 
 type Message struct {
-	Body      string
-	MD5OfBody string
+	Body              string
+	MD5OfBody         string
+	MessageAttributes map[string]APIAttribute
+	// TODO: is this how we want to store it?
+	MessageSystemAttributes map[string]APIAttribute
 }
 
 type Queue struct {
@@ -104,10 +107,18 @@ func (s *SQS) SendMessage(input SendMessageInput) (*SendMessageOutput, *awserror
 		return nil, QueueDoesNotExist("")
 	}
 
+	for name := range input.MessageSystemAttributes {
+		if name != AWSTraceHeaderAttributeName {
+			return nil, ValidationException("Bad MessageSystemAttribute")
+		}
+	}
+
 	MD5OfBody := hexMD5([]byte(input.MessageBody))
 	queue.Messages = append(queue.Messages, &Message{
-		Body:      input.MessageBody,
-		MD5OfBody: MD5OfBody,
+		Body:                    input.MessageBody,
+		MD5OfBody:               MD5OfBody,
+		MessageAttributes:       input.MessageAttributes,
+		MessageSystemAttributes: input.MessageSystemAttributes,
 	})
 
 	return &SendMessageOutput{
@@ -243,10 +254,32 @@ func (s *SQS) ReceiveMessage(input ReceiveMessageInput) (*ReceiveMessageOutput, 
 		// TODO: check visibility conditions
 
 		output.Message = append(output.Message, APIMessage{
-			Body:      message.Body,
-			MD5OfBody: message.MD5OfBody,
+			Body:              message.Body,
+			MD5OfBody:         message.MD5OfBody,
+			MessageAttributes: filterAttributes(message.MessageAttributes, input.MessageAttributeNames),
 		})
+
+		if len(output.Message) == input.MaxNumberOfMessages {
+			break
+		}
 	}
 
 	return output, nil
+}
+
+func filterAttributes(attributes map[string]APIAttribute, attributeNames []string) map[string]APIAttribute {
+	ret := make(map[string]APIAttribute)
+
+	for k, v := range attributes {
+		for _, name := range attributeNames {
+			if name == "All" ||
+				name == k ||
+				(strings.HasSuffix(name, ".*") && strings.HasPrefix(k, name[:len(name)-2])) {
+				ret[k] = v
+				break
+			}
+		}
+	}
+
+	return ret
 }

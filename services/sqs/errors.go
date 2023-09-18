@@ -23,3 +23,11 @@ func QueueDoesNotExist(message string) *awserrors.Error {
 func ValidationException(message string) *awserrors.Error {
 	return awserrors.Generate400Exception("ValidationException", message)
 }
+
+func EmptyBatchRequest(message string) *awserrors.Error {
+	return awserrors.Generate400Exception("EmptyBatchRequest", message)
+}
+
+func TooManyEntriesInBatchRequest(message string) *awserrors.Error {
+	return awserrors.Generate400Exception("TooManyEntriesInBatchRequest", message)
+}

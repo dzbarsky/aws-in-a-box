@@ -298,8 +298,8 @@ SQS support is in in-progress.
 | ChangeMessageVisibility      | ❌ Unsupported  |                    |
 | ChangeMessageVisibilityBatch | ❌ Unsupported  |                    |
 | CreateQueue                  | ✅ Supported    |                    |
-| DeleteMessage                | ❌ Unsupported  |                    |
-| DeleteMessageBatch           | ❌ Unsupported  |                    |
+| DeleteMessage                | ✅ Supported    |                    |
+| DeleteMessageBatch           | ✅ Supported    |                    |
 | DeleteQueue                  | ✅ Supported    |                    |
 | GetQueueAttributes           | ✅ Supported    |                    |
 | GetQueueUrl                  | ✅ Supported    |                    |

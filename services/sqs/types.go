@@ -143,3 +143,34 @@ type APIMessage struct {
 	MessageId              string
 	ReceiptHandle          string
 }
+
+type DeleteMessageInput struct {
+	QueueUrl      string
+	ReceiptHandle string
+}
+
+type DeleteMessageOutput struct{}
+
+type DeleteMessageBatchInput struct {
+	QueueUrl string
+	Entries  []struct {
+		Id            string
+		ReceiptHandle string
+	}
+}
+
+type DeleteMessageBatchOutput struct {
+	Failed     []BatchResultErrorEntry
+	Successful []DeleteMessageBatchResultEntry
+}
+
+type BatchResultErrorEntry struct {
+	Code        string
+	Id          string
+	Message     string
+	SenderFault bool
+}
+
+type DeleteMessageBatchResultEntry struct {
+	Id string
+}

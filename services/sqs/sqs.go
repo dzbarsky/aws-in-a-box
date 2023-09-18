@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"maps"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -312,4 +313,91 @@ func filterAttributes(attributes map[string]APIAttribute, attributeNames []strin
 	}
 
 	return ret
+}
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_DeleteMessage.html
+func (s *SQS) DeleteMessage(input DeleteMessageInput) (*DeleteMessageOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	queue, ok := s.queuesByName[s.getQueueName(input.QueueUrl)]
+	if !ok {
+		return nil, QueueDoesNotExist("")
+	}
+
+	return nil, s.lockedDeleteMessage(queue, input.ReceiptHandle)
+}
+
+func (s *SQS) lockedDeleteMessage(queue *Queue, receiptHandle string) *awserrors.Error {
+	return nil
+}
+
+const (
+	maxEntriesInDeleteBatch = 10
+	maxBatchEntryIdLength   = 80
+)
+
+var (
+	batchEntryIdRegex = regexp.MustCompile("[a-zA-Z0-9_-]+")
+)
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_DeleteMessageBatch.html
+func (s *SQS) DeleteMessageBatch(input DeleteMessageBatchInput) (*DeleteMessageBatchOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	queue, ok := s.queuesByName[s.getQueueName(input.QueueUrl)]
+	if !ok {
+		return nil, QueueDoesNotExist("")
+	}
+
+	if len(input.Entries) == 0 {
+		return nil, EmptyBatchRequest("")
+	}
+
+	if len(input.Entries) > maxEntriesInDeleteBatch {
+		return nil, TooManyEntriesInBatchRequest("")
+	}
+
+	seen := make(map[string]struct{})
+
+	output := &DeleteMessageBatchOutput{}
+	for _, entry := range input.Entries {
+		if _, ok := seen[entry.Id]; ok {
+			output.Failed = append(output.Failed, BatchResultErrorEntry{
+				Code:        "BatchEntryIdsNotDistinct",
+				Message:     "",
+				Id:          entry.Id,
+				SenderFault: true,
+			})
+			continue
+		}
+
+		seen[entry.Id] = struct{}{}
+		if len(entry.Id) > maxBatchEntryIdLength || !batchEntryIdRegex.MatchString(entry.Id) {
+			output.Failed = append(output.Failed, BatchResultErrorEntry{
+				Code:        "InvalidBatchEntryId",
+				Message:     "",
+				Id:          entry.Id,
+				SenderFault: true,
+			})
+			continue
+		}
+
+		err := s.lockedDeleteMessage(queue, entry.ReceiptHandle)
+		if err == nil {
+			output.Successful = append(output.Successful, DeleteMessageBatchResultEntry{
+				Id: entry.Id,
+			})
+		} else {
+			output.Failed = append(output.Failed, BatchResultErrorEntry{
+				Code:        err.Body.Type,
+				Message:     err.Body.Message,
+				Id:          entry.Id,
+				SenderFault: err.Code == 400,
+			})
+		}
+	}
+
+	return nil, nil
 }

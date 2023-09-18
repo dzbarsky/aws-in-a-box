@@ -312,7 +312,7 @@ SQS support is in in-progress.
 | RemovePermission             | ❌ Unsupported  |                    |
 | SendMessage                  | ✅ Supported    |                    |
 | SendMessageBatch             | ❌ Unsupported  |                    |
-| SetQueueAttributes           | ❌ Unsupported  |                    |
+| SetQueueAttributes           | ✅ Supported    | not all attributes |
 | StartMessageMoveTask         | ❌ Unsupported  |                    |
 | TagQueue                     | ✅ Supported    |                    |
 | UntagQueue                   | ✅ Supported    |                    |

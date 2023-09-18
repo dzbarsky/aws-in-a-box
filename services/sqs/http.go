@@ -16,6 +16,7 @@ func registerHTTPHandlers(logger *slog.Logger, registry map[string]http.HandlerF
 	register(logger, registry, "ListQueueTags", s.ListQueueTags)
 	register(logger, registry, "ReceiveMessage", s.ReceiveMessage)
 	register(logger, registry, "SendMessage", s.SendMessage)
+	register(logger, registry, "SetQueueAttributes", s.SetQueueAttributes)
 	register(logger, registry, "TagQueue", s.TagQueue)
 	register(logger, registry, "UntagQueue", s.UntagQueue)
 }

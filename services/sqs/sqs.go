@@ -109,30 +109,9 @@ func (s *SQS) CreateQueue(input CreateQueueInput) (*CreateQueueOutput, *awserror
 		MaximumMessageSize: defaultMaximumMessageSize,
 	}
 
-	for k, v := range input.Attribute {
-		if k == "VisibilityTimeout" {
-			timeout, err := strconv.Atoi(v)
-			if err != nil {
-				return nil, ValidationException(err.Error())
-			}
-
-			if timeout < 0 || timeout > maxVisibilityTimeoutSeconds {
-				return nil, ValidationException("Bad VisibilityTimeout")
-			}
-
-			queue.VisibilityTimeout = time.Duration(timeout) * time.Second
-		} else if k == "MaximumMessageSize" {
-			size, err := strconv.Atoi(v)
-			if err != nil {
-				return nil, ValidationException(err.Error())
-			}
-
-			if size < minMaximumMessageSize || size > maxMaximumMessageSize {
-				return nil, ValidationException("Bad MaximumMessageSize")
-			}
-
-			queue.MaximumMessageSize = size
-		}
+	err := s.lockedSetQueueAttributes(queue, input.Attribute)
+	if err != nil {
+		return nil, err
 	}
 
 	s.queuesByName[input.QueueName] = queue
@@ -452,4 +431,48 @@ func (s *SQS) DeleteMessageBatch(input DeleteMessageBatchInput) (*DeleteMessageB
 	}
 
 	return nil, nil
+}
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html
+func (s *SQS) SetQueueAttributes(input SetQueueAttributesInput) (*SetQueueAttributesOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	queue, ok := s.queuesByName[s.getQueueName(input.QueueUrl)]
+	if !ok {
+		return nil, QueueDoesNotExist("")
+	}
+
+	// TODO: is it ok to fail the request but stil change some of the attributes?
+	return nil, s.lockedSetQueueAttributes(queue, input.Attributes)
+}
+
+func (s *SQS) lockedSetQueueAttributes(queue *Queue, attributes map[string]string) *awserrors.Error {
+	for k, v := range attributes {
+		if k == "VisibilityTimeout" {
+			timeout, err := strconv.Atoi(v)
+			if err != nil {
+				return ValidationException(err.Error())
+			}
+
+			if timeout < 0 || timeout > maxVisibilityTimeoutSeconds {
+				return ValidationException("Bad VisibilityTimeout")
+			}
+
+			queue.VisibilityTimeout = time.Duration(timeout) * time.Second
+		} else if k == "MaximumMessageSize" {
+			size, err := strconv.Atoi(v)
+			if err != nil {
+				return ValidationException(err.Error())
+			}
+
+			if size < minMaximumMessageSize || size > maxMaximumMessageSize {
+				return ValidationException("Bad MaximumMessageSize")
+			}
+
+			queue.MaximumMessageSize = size
+		}
+	}
+
+	return nil
 }

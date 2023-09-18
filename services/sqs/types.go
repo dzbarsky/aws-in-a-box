@@ -174,3 +174,10 @@ type BatchResultErrorEntry struct {
 type DeleteMessageBatchResultEntry struct {
 	Id string
 }
+
+type SetQueueAttributesInput struct {
+	QueueUrl   string
+	Attributes map[string]string
+}
+
+type SetQueueAttributesOutput struct{}

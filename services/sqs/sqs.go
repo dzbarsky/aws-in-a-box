@@ -175,8 +175,10 @@ func (s *SQS) SendMessage(input SendMessageInput) (*SendMessageOutput, *awserror
 		return nil, ValidationException("Message too long")
 	}
 
-	delayDuration := queue.DelayDuration
-	// TODO: message delay duration?
+	delayDuration := time.Duration(input.DelaySeconds)
+	if delayDuration == 0 {
+		delayDuration = queue.DelayDuration
+	}
 
 	now := time.Now()
 

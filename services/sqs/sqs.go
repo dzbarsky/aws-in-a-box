@@ -6,12 +6,25 @@ import (
 	"log/slog"
 	"maps"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/awserrors"
+)
+
+const (
+	defaultVisibilityTimeout    = 30 * time.Second
+	maxVisibilityTimeoutSeconds = 12 * 3600
+
+	maxEntriesInDeleteBatch = 10
+	maxBatchEntryIdLength   = 80
+)
+
+var (
+	batchEntryIdRegex = regexp.MustCompile("[a-zA-Z0-9_-]+")
 )
 
 type Message struct {
@@ -32,8 +45,9 @@ type Queue struct {
 	URL               string
 
 	// Mutable
-	Messages []*Message
-	Tags     map[string]string
+	Messages          []*Message
+	Tags              map[string]string
+	VisibilityTimeout time.Duration
 }
 
 type SQS struct {
@@ -79,11 +93,30 @@ func (s *SQS) CreateQueue(input CreateQueueInput) (*CreateQueueOutput, *awserror
 
 	url := s.getQueueUrl(input.QueueName)
 
-	s.queuesByName[input.QueueName] = &Queue{
+	queue := &Queue{
 		Attributes: input.Attribute,
 		Tags:       input.Tag,
 		URL:        url,
+
+		VisibilityTimeout: defaultVisibilityTimeout,
 	}
+
+	for k, v := range input.Attribute {
+		if k == "VisibilityTimeout" {
+			timeout, err := strconv.Atoi(v)
+			if err != nil {
+				return nil, ValidationException(err.Error())
+			}
+
+			if timeout < 0 || timeout > maxVisibilityTimeoutSeconds {
+				return nil, ValidationException("Bad VisibilityTimeout")
+			}
+
+			queue.VisibilityTimeout = time.Duration(timeout) * time.Second
+		}
+	}
+
+	s.queuesByName[input.QueueName] = queue
 
 	return &CreateQueueOutput{
 		QueueUrl: url,
@@ -272,6 +305,11 @@ func (s *SQS) ReceiveMessage(input ReceiveMessageInput) (*ReceiveMessageOutput, 
 
 	now := time.Now()
 
+	visibilityTimeout := time.Second * time.Duration(input.VisibilityTimeout)
+	if visibilityTimeout == 0 {
+		visibilityTimeout = queue.VisibilityTimeout
+	}
+
 	output := &ReceiveMessageOutput{}
 	for _, message := range queue.Messages {
 		if message.Deleted {
@@ -288,7 +326,7 @@ func (s *SQS) ReceiveMessage(input ReceiveMessageInput) (*ReceiveMessageOutput, 
 			MessageAttributes: filterAttributes(message.MessageAttributes, input.MessageAttributeNames),
 		})
 
-		message.VisibleAt = now.Add(time.Second * time.Duration(input.VisibilityTimeout))
+		message.VisibleAt = now.Add(visibilityTimeout)
 
 		if len(output.Message) == input.MaxNumberOfMessages {
 			break
@@ -331,15 +369,6 @@ func (s *SQS) DeleteMessage(input DeleteMessageInput) (*DeleteMessageOutput, *aw
 func (s *SQS) lockedDeleteMessage(queue *Queue, receiptHandle string) *awserrors.Error {
 	return nil
 }
-
-const (
-	maxEntriesInDeleteBatch = 10
-	maxBatchEntryIdLength   = 80
-)
-
-var (
-	batchEntryIdRegex = regexp.MustCompile("[a-zA-Z0-9_-]+")
-)
 
 // https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_DeleteMessageBatch.html
 func (s *SQS) DeleteMessageBatch(input DeleteMessageBatchInput) (*DeleteMessageBatchOutput, *awserrors.Error) {

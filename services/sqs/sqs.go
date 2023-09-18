@@ -7,6 +7,7 @@ import (
 	"maps"
 	"strings"
 	"sync"
+	"time"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/awserrors"
@@ -18,6 +19,9 @@ type Message struct {
 	MessageAttributes map[string]APIAttribute
 	// TODO: is this how we want to store it?
 	MessageSystemAttributes map[string]APIAttribute
+
+	Deleted   bool
+	VisibleAt time.Time
 }
 
 type Queue struct {
@@ -119,6 +123,7 @@ func (s *SQS) SendMessage(input SendMessageInput) (*SendMessageOutput, *awserror
 		MD5OfBody:               MD5OfBody,
 		MessageAttributes:       input.MessageAttributes,
 		MessageSystemAttributes: input.MessageSystemAttributes,
+		VisibleAt:               time.Now(),
 	})
 
 	return &SendMessageOutput{
@@ -249,15 +254,25 @@ func (s *SQS) ReceiveMessage(input ReceiveMessageInput) (*ReceiveMessageOutput, 
 		return nil, QueueDoesNotExist("")
 	}
 
+	now := time.Now()
+
 	output := &ReceiveMessageOutput{}
 	for _, message := range queue.Messages {
-		// TODO: check visibility conditions
+		if message.Deleted {
+			continue
+		}
+
+		if message.VisibleAt.After(now) {
+			continue
+		}
 
 		output.Message = append(output.Message, APIMessage{
 			Body:              message.Body,
 			MD5OfBody:         message.MD5OfBody,
 			MessageAttributes: filterAttributes(message.MessageAttributes, input.MessageAttributeNames),
 		})
+
+		message.VisibleAt = now.Add(time.Second * time.Duration(input.VisibilityTimeout))
 
 		if len(output.Message) == input.MaxNumberOfMessages {
 			break

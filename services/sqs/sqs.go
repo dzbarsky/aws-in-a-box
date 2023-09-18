@@ -23,6 +23,10 @@ const (
 	minMaximumMessageSize     = 1_024
 	maxMaximumMessageSize     = 262_144
 
+	defaultDelayDuration = 0
+	minDelaySeconds      = 0
+	maxDelaySeconds      = 900
+
 	maxEntriesInDeleteBatch = 10
 	maxBatchEntryIdLength   = 80
 )
@@ -38,8 +42,9 @@ type Message struct {
 	// TODO: is this how we want to store it?
 	MessageSystemAttributes map[string]APIAttribute
 
-	Deleted   bool
-	VisibleAt time.Time
+	Deleted      bool
+	VisibleAt    time.Time
+	DelayedUntil time.Time
 }
 
 type Queue struct {
@@ -55,6 +60,7 @@ type Queue struct {
 	// Attributes
 	VisibilityTimeout  time.Duration
 	MaximumMessageSize int
+	DelayDuration      time.Duration
 }
 
 type SQS struct {
@@ -107,6 +113,7 @@ func (s *SQS) CreateQueue(input CreateQueueInput) (*CreateQueueOutput, *awserror
 
 		VisibilityTimeout:  defaultVisibilityTimeout,
 		MaximumMessageSize: defaultMaximumMessageSize,
+		DelayDuration:      defaultDelayDuration,
 	}
 
 	err := s.lockedSetQueueAttributes(queue, input.Attribute)
@@ -168,13 +175,19 @@ func (s *SQS) SendMessage(input SendMessageInput) (*SendMessageOutput, *awserror
 		return nil, ValidationException("Message too long")
 	}
 
+	delayDuration := queue.DelayDuration
+	// TODO: message delay duration?
+
+	now := time.Now()
+
 	MD5OfBody := hexMD5([]byte(input.MessageBody))
 	queue.Messages = append(queue.Messages, &Message{
 		Body:                    input.MessageBody,
 		MD5OfBody:               MD5OfBody,
 		MessageAttributes:       input.MessageAttributes,
 		MessageSystemAttributes: input.MessageSystemAttributes,
-		VisibleAt:               time.Now(),
+		VisibleAt:               now,
+		DelayedUntil:            now.Add(delayDuration),
 	})
 
 	return &SendMessageOutput{
@@ -319,6 +332,10 @@ func (s *SQS) ReceiveMessage(input ReceiveMessageInput) (*ReceiveMessageOutput, 
 		}
 
 		if message.VisibleAt.After(now) {
+			continue
+		}
+
+		if message.DelayedUntil.After(now) {
 			continue
 		}
 
@@ -471,6 +488,17 @@ func (s *SQS) lockedSetQueueAttributes(queue *Queue, attributes map[string]strin
 			}
 
 			queue.MaximumMessageSize = size
+		} else if k == "DelaySeconds" {
+			delay, err := strconv.Atoi(v)
+			if err != nil {
+				return ValidationException(err.Error())
+			}
+
+			if delay < minDelaySeconds || delay > int(maxDelaySeconds) {
+				return ValidationException("Bad DelaySeconds")
+			}
+
+			queue.DelayDuration = time.Duration(delay) * time.Second
 		}
 	}
 

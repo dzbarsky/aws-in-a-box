@@ -31,3 +31,11 @@ func EmptyBatchRequest(message string) *awserrors.Error {
 func TooManyEntriesInBatchRequest(message string) *awserrors.Error {
 	return awserrors.Generate400Exception("TooManyEntriesInBatchRequest", message)
 }
+
+func InvalidIdFormat(message string) *awserrors.Error {
+	return awserrors.Generate400Exception("InvalidIdFormat", message)
+}
+
+func ReceiptHandleIsInvalid(message string) *awserrors.Error {
+	return awserrors.Generate400Exception("ReceiptHandleIsInvalid", message)
+}

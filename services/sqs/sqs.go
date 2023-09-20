@@ -1,7 +1,9 @@
 package sqs
 
 import (
+	"bytes"
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/hex"
 	"log/slog"
 	"maps"
@@ -10,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gofrs/uuid/v5"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/awserrors"
@@ -36,6 +40,8 @@ var (
 )
 
 type Message struct {
+	UUID uuid.UUID
+
 	Body              string
 	MD5OfBody         string
 	MessageAttributes map[string]APIAttribute
@@ -184,6 +190,7 @@ func (s *SQS) SendMessage(input SendMessageInput) (*SendMessageOutput, *awserror
 
 	MD5OfBody := hexMD5([]byte(input.MessageBody))
 	queue.Messages = append(queue.Messages, &Message{
+		UUID:                    uuid.Must(uuid.NewV4()),
 		Body:                    input.MessageBody,
 		MD5OfBody:               MD5OfBody,
 		MessageAttributes:       input.MessageAttributes,
@@ -345,6 +352,10 @@ func (s *SQS) ReceiveMessage(input ReceiveMessageInput) (*ReceiveMessageOutput, 
 			Body:              message.Body,
 			MD5OfBody:         message.MD5OfBody,
 			MessageAttributes: filterAttributes(message.MessageAttributes, input.MessageAttributeNames),
+			MessageId:         message.UUID.String(),
+			// TODO: It seems AWS encodes additional data in here, there's some sort of binary blob
+			// This is fine for now as long as nobody tries to get clever with the representation.
+			ReceiptHandle: base64.StdEncoding.EncodeToString(message.UUID[:]),
 		})
 
 		message.VisibleAt = now.Add(visibilityTimeout)
@@ -388,7 +399,19 @@ func (s *SQS) DeleteMessage(input DeleteMessageInput) (*DeleteMessageOutput, *aw
 }
 
 func (s *SQS) lockedDeleteMessage(queue *Queue, receiptHandle string) *awserrors.Error {
-	return nil
+	uuid, err := base64.StdEncoding.DecodeString(receiptHandle)
+	if err != nil {
+		return InvalidIdFormat("")
+	}
+
+	for _, message := range queue.Messages {
+		if bytes.Equal(message.UUID.Bytes(), uuid) {
+			message.Deleted = true
+			return nil
+		}
+	}
+
+	return ReceiptHandleIsInvalid("")
 }
 
 // https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_DeleteMessageBatch.html

@@ -241,6 +241,34 @@ func TestObjectTagging(t *testing.T) {
 	}
 }
 
+func TestObjectTagging_NoTags(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	key := "test-key"
+	_, err := client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+		Body:   strings.NewReader("hello"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tagging, err := client.GetObjectTagging(ctx, &s3.GetObjectTaggingInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags := tagging.TagSet
+	if len(tags) != 0 {
+		t.Fatal("bad tags", tagging.TagSet)
+	}
+}
+
 func TestBucketTagging(t *testing.T) {
 	ctx := context.Background()
 	client, srv := makeClientServerPair()

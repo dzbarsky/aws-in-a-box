@@ -403,15 +403,17 @@ func (s *S3) GetObjectTagging(input GetObjectTaggingInput) (*GetObjectTaggingOut
 	}
 
 	tagging := &GetObjectTaggingOutput{}
-	for _, kv := range strings.Split(object.Tagging, "&") {
-		kv := strings.Split(kv, "=")
-		if len(kv) != 2 {
-			return nil, awserrors.XXX_TODO("invalid tagging")
+	if len(object.Tagging) > 0 {
+		for _, kv := range strings.Split(object.Tagging, "&") {
+			kvs := strings.Split(kv, "=")
+			if len(kvs) != 2 {
+				return nil, awserrors.XXX_TODO(fmt.Sprintf("invalid tagging: '%s', '%s'", kv, object.Tagging))
+			}
+			tagging.TagSet.Tag = append(tagging.TagSet.Tag, APITag{
+				Key:   kvs[0],
+				Value: kvs[1],
+			})
 		}
-		tagging.TagSet.Tag = append(tagging.TagSet.Tag, APITag{
-			Key:   kv[0],
-			Value: kv[1],
-		})
 	}
 	return tagging, nil
 }

@@ -393,3 +393,86 @@ func TestDeleteObjects(t *testing.T) {
 		t.Fatal("wrong error?", output.Errors)
 	}
 }
+
+func TestListObjectsV2(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	for i := 0; i < 20; i++ {
+		_, err := client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: &bucket,
+			Key:    aws.String(strconv.Itoa(i)),
+			Body:   strings.NewReader(""),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resp, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: &bucket,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Default limit of 1000
+	if len(resp.Contents) != 20 {
+		t.Fatal("not 20 contents", resp.Contents)
+	}
+	// Contents should be sorted in string order
+	prevKey := ""
+	for _, content := range resp.Contents {
+		if *content.Key <= prevKey {
+			t.Fatal("not sorted output", prevKey, content.Key)
+		}
+		prevKey = *content.Key
+	}
+
+	// It should respect maxKeys and startAfter
+	startAfter := "14"
+	resp, err = client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:     &bucket,
+		MaxKeys:    2,
+		StartAfter: &startAfter,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Contents) != 2 {
+		t.Fatal("not 4 contents", resp.Contents)
+	}
+	// All of the contents should be in sorted order, and should be after "14"
+	if *resp.Contents[0].Key != "14" {
+		t.Fatal("should have found 14", resp.Contents[0])
+	}
+	if *resp.Contents[1].Key != "15" {
+		t.Fatal("should have found 15", resp.Contents[1])
+	}
+	// It should give us a reasonable continuation token.
+	if resp.NextContinuationToken == nil || *resp.NextContinuationToken != "16" {
+		t.Fatal("continuation token should be 16", resp.ContinuationToken)
+	}
+
+	// It should respect Prefix
+	prefix := "1"
+	resp, err = client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: &bucket,
+		// We expect 11 keys, include an extra to verify behavior
+		MaxKeys: 12,
+		Prefix:  &prefix,
+	})
+	if len(resp.Contents) != 11 {
+		t.Fatal("not 11 contents", resp.Contents)
+	}
+	for _, content := range resp.Contents {
+		if !strings.HasPrefix(*content.Key, prefix) {
+			t.Fatal("not has prefix ", prevKey, content.Key)
+		}
+	}
+	if resp.ContinuationToken != nil {
+		t.Fatal("expected nil continuation token", resp)
+	}
+
+}

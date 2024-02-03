@@ -39,6 +39,14 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 					panic("Unhandled method")
 				}
 				return true
+			} else if r.URL.Query().Get("list-type") == "2" {
+				switch r.Method {
+				case http.MethodGet:
+					handle(w, r, logger.With("method", "ListObjectsV2"), s3.ListObjectsV2)
+				default:
+					panic("Unhandled method")
+				}
+				return true
 			}
 			switch r.Method {
 			case http.MethodPut:

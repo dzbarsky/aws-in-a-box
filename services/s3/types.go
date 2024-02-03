@@ -99,6 +99,7 @@ type GetObjectOutput struct {
 	ServerSideEncryption string `s3:"header:x-amz-server-side-encryption"`
 	SSECustomerAlgorithm string `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
 	SSECustomerKey       string `s3:"header:x-amz-server-side-encryption-customer-key"`
+	LastModified         string `s3:"header:Last-Modified"`
 	// TODO: md5
 	SSEKMSKeyId string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
 	//PartsCount    int    `s3:"header:x-amz-mp-parts-count"`
@@ -278,4 +279,38 @@ type DeleteObjectsError struct {
 	Key     string
 	Message string
 	//VersionId string
+}
+
+type ListObjectsV2Input struct {
+	Bucket            string  `s3:"bucket"`
+	ContinuationToken *string `s3:"query:continuation-token"`
+	MaxKeys           *int    `s3:"query:max-keys"`
+	Prefix            *string `s3:"query:prefix"`
+	StartAfter        *string `s3:"query:start-after"`
+	// Not supported:
+	// Delimiter
+	// Encoding-Type
+	// Fetch-Owner
+}
+
+type ListObjectsV2Object struct {
+	XMLName      xml.Name `xml:"Contents"`
+	ETag         string
+	Key          string
+	Size         int
+	LastModified string
+}
+
+type ListObjectsV2Output struct {
+	XMLName           xml.Name `xml:"ListBucketResult"`
+	IsTruncated       bool
+	Contents          []ListObjectsV2Object
+	ContinuationToken *string
+	// Bucket name
+	Name                  string
+	KeyCount              int
+	MaxKeys               int
+	NextContinuationToken string
+	Prefix                *string
+	StartAfter            *string
 }

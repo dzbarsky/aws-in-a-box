@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -195,6 +196,8 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		SSECustomerAlgorithm: object.SSECustomerAlgorithm,
 		SSECustomerKey:       object.SSECustomerKey,
 		SSEKMSKeyId:          object.SSEKMSKeyId,
+		// Bafflingly, This format is expected here.
+		LastModified: time.Now().UTC().Format(time.RFC822Z),
 	}
 	if includeBody {
 		var md5s [][]byte
@@ -710,4 +713,83 @@ func (s *S3) DeleteBucketTagging(input DeleteBucketTaggingInput) (*Response204, 
 
 	b.TagSet = TagSet{}
 	return response204, nil
+}
+
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html
+func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	b, ok := s.buckets[input.Bucket]
+	if !ok {
+		return nil, awserrors.XXX_TODO("no bucket")
+	}
+
+	// Gather a list of all keys in bucket, sort them.
+	var keysSorted []string
+	for key := range b.objects {
+		keysSorted = append(keysSorted, key)
+	}
+	sort.Strings(keysSorted)
+
+	var maxKeys int
+	if input.MaxKeys == nil {
+		maxKeys = 1000
+	} else {
+		maxKeys = *input.MaxKeys
+	}
+
+	// Gather up to maxKeys to include
+	isTruncated := false
+	continuationToken := ""
+	var keysToInclude []string
+	for _, key := range keysSorted {
+		if len(keysToInclude) >= maxKeys {
+			isTruncated = true
+			continuationToken = key
+			break
+		}
+
+		if input.StartAfter != nil && key < *input.StartAfter {
+			continue
+		}
+
+		if input.Prefix != nil {
+			if !strings.HasPrefix(key, *input.Prefix) {
+				continue
+			}
+		}
+
+		if input.ContinuationToken != nil && key < *input.ContinuationToken {
+			continue
+		}
+		keysToInclude = append(keysToInclude, key)
+	}
+
+	var contents []ListObjectsV2Object
+	for _, keyToInclude := range keysToInclude {
+		object := b.objects[keyToInclude]
+		contents = append(contents, ListObjectsV2Object{
+			ETag: object.ETag,
+			Key:  keyToInclude,
+			Size: int(object.ContentLength),
+			// TODO: Complete guess on format
+			LastModified: time.Now().UTC().Format(time.RFC3339Nano),
+		})
+	}
+
+	response := &ListObjectsV2Output{
+		Name:                  input.Bucket,
+		IsTruncated:           isTruncated,
+		Contents:              contents,
+		ContinuationToken:     input.ContinuationToken,
+		KeyCount:              len(contents),
+		MaxKeys:               maxKeys,
+		NextContinuationToken: continuationToken,
+		Prefix:                input.Prefix,
+		StartAfter:            input.StartAfter,
+	}
+
+	return response, nil
+
 }

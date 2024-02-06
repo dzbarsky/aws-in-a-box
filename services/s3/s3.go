@@ -283,7 +283,6 @@ func (s *S3) readerForRange(object *Object, br ByteRange) (io.Reader, *awserrors
 			bytesToReadFromThisChunk = bytesUntilEnd - bytesUntilStart
 		}
 
-		fmt.Println()
 		readers = append(readers, io.NewSectionReader(f, bytesUntilStart, bytesToReadFromThisChunk))
 		bytesUntilStart = 0
 		bytesUntilEnd -= int64(bytesToReadFromThisChunk)

@@ -1,7 +1,6 @@
 package s3
 
 import (
-	"bytes"
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
@@ -175,8 +174,10 @@ func (s *S3) HeadObject(input GetObjectInput) (*GetObjectOutput, *awserrors.Erro
 }
 
 type ByteRange struct {
+	// inclusive
 	startByte int64
-	endByte   int64
+	// exclusive
+	endByte int64
 }
 
 func parseRangeHeader(rangeHeader string, o *Object) ([]ByteRange, *awserrors.Error) {
@@ -227,73 +228,64 @@ func parseRangeHeader(rangeHeader string, o *Object) ([]ByteRange, *awserrors.Er
 		if err != nil {
 			return nil, awserrors.XXX_TODO(err.Error())
 		}
-		endByte, err := strconv.ParseInt(splitRange[1], 10, 64)
+		endByteInclusive, err := strconv.ParseInt(splitRange[1], 10, 64)
 		if err != nil {
 			return nil, awserrors.XXX_TODO(err.Error())
 		}
 		result = append(result, ByteRange{
 			startByte: startByte,
-			endByte:   endByte,
+			endByte:   endByteInclusive + 1,
 		})
 	}
 	return result, nil
 }
 
 func (s *S3) readerForRange(object *Object, br ByteRange) (io.Reader, *awserrors.Error) {
-	var sizes []int64
-	var md5s [][]byte
+	var parts []Part
 	if len(object.Parts) == 0 {
-		md5s = [][]byte{object.MD5}
-		sizes = []int64{object.ContentLength}
+		parts = []Part{{MD5: object.MD5, Size: object.ContentLength}}
 	} else {
-		for _, part := range object.Parts {
-			md5s = append(md5s, part.MD5)
-			sizes = append(sizes, part.Size)
-		}
+		parts = object.Parts
 	}
 
+	// bytesUntilStart is zero if we have already passed the start, otherwise it is the total number
+	// of bytes we must skip before starting our response.
 	bytesUntilStart := br.startByte
-	// endByte is inclusive, so add one to be exclusive.
-	bytesUntilEnd := br.endByte + 1
+	bytesUntilEnd := br.endByte
 	var readers []io.Reader
-	for i, md5 := range md5s {
+	// Loop over parts in order, updating bytesUntilStart and bytesUntilEnd. If the chunk lies
+	// within the range that must be returned, use a section reader to capture the appropriate range.
+	for _, part := range parts {
 		// If we've already passed the end, break
 		if bytesUntilEnd <= 0 {
 			break
 		}
 
-		size := sizes[i]
+		size := part.Size
 		// If we haven't reached the start yet, skip the chunk.
-		if bytesUntilStart > sizes[i] {
+		if bytesUntilStart > size {
 			bytesUntilStart -= size
 			bytesUntilEnd -= size
 			continue
 		}
 
 		// Otherwise, open a reader for this chunk.
-		f, err := os.Open(s.filepath(md5))
+		f, err := os.Open(s.filepath(part.MD5))
 		if err != nil {
 			return nil, awserrors.XXX_TODO(err.Error())
 		}
-		// If we haven't reached the start yet, seek past some bytes.
-		if bytesUntilStart > 0 {
-			f.Seek(bytesUntilStart, 0)
-			bytesUntilEnd -= bytesUntilStart
-			// Size continues to track the remaining bytes in this chunk.
-			size -= bytesUntilStart
-			bytesUntilStart = 0
+		var bytesToReadFromThisChunk int64
+		if bytesUntilEnd >= size {
+			// Read the entire chunk after the start.
+			bytesToReadFromThisChunk = size - bytesUntilStart
+		} else {
+			// Read everything from the start until the end.
+			bytesToReadFromThisChunk = bytesUntilEnd - bytesUntilStart
 		}
 
-		// If this chunk will exceed the number of bytes we need, then read the piece we want into a buffer.
-		if bytesUntilEnd < size {
-			b := bytes.NewBuffer(nil)
-			io.CopyN(b, f, bytesUntilEnd)
-			readers = append(readers, b)
-			bytesUntilEnd = 0
-		} else {
-			// Otherwise, just append the whole chunk.
-			readers = append(readers, f)
-		}
+		readers = append(readers, io.NewSectionReader(f, bytesUntilStart, bytesToReadFromThisChunk))
+		bytesUntilStart = 0
+		bytesUntilEnd -= int64(bytesToReadFromThisChunk)
 	}
 	return io.MultiReader(readers...), nil
 }
@@ -341,8 +333,7 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		var readers []io.Reader
 		totalLength := int64(0)
 		for _, rangeItem := range ranges {
-			// endByte is inclusive.
-			totalLength += (rangeItem.endByte - rangeItem.startByte) + 1
+			totalLength += (rangeItem.endByte - rangeItem.startByte)
 			readerForRange, err := s.readerForRange(object, rangeItem)
 			if err != nil {
 				return nil, err

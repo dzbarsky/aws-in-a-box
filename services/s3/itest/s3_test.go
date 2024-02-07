@@ -1,6 +1,7 @@
 package itest
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -172,6 +173,88 @@ func TestMultipartUpload(t *testing.T) {
 	}}) {
 		t.Fatal("wrong parts", partsOutput.Parts)
 	}
+}
+
+type RangeTestCase struct {
+	Name  string
+	Range string
+	Body  string
+}
+
+func TestRangeQuery(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	key := "test-key"
+	upload, err := client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := upload.UploadId
+
+	var parts []types.CompletedPart
+	for i, s := range []string{"hello", " world ", "hi"} {
+		output, err := client.UploadPart(ctx, &s3.UploadPartInput{
+			PartNumber: int32(i),
+			Bucket:     &bucket,
+			Key:        &key,
+			UploadId:   id,
+			Body:       strings.NewReader(s),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		parts = append(parts, types.CompletedPart{
+			ETag:       output.ETag,
+			PartNumber: int32(i),
+		})
+	}
+
+	_, err = client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
+		Bucket:   &bucket,
+		Key:      &key,
+		UploadId: id,
+		MultipartUpload: &types.CompletedMultipartUpload{
+			Parts: parts,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []RangeTestCase{
+		{Name: "entire range", Range: "bytes=0-13", Body: "hello world hi"},
+		{Name: "Skip entire first part and half of second part", Range: "bytes=8-13", Body: "rld hi"},
+		{Name: "Prefix", Range: "bytes=0-8", Body: "hello wor"},
+		{Name: "Suffix", Range: "bytes=-4", Body: "d hi"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			// Range Query for whole thing.
+			output, err := client.GetObject(ctx, &s3.GetObjectInput{
+				Bucket: &bucket,
+				Key:    &key,
+				Range:  &testCase.Range,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := io.ReadAll(output.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(data, []byte(testCase.Body)) {
+				t.Fatal("{} wrong body", string(data))
+			}
+		})
+
+	}
+
 }
 
 func TestObjectTagging(t *testing.T) {

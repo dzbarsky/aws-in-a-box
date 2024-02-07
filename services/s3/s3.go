@@ -174,6 +174,123 @@ func (s *S3) HeadObject(input GetObjectInput) (*GetObjectOutput, *awserrors.Erro
 	return s.getObject(input, false)
 }
 
+type ByteRange struct {
+	// inclusive
+	startByte int64
+	// exclusive
+	endByte int64
+}
+
+func parseRangeHeader(rangeHeader string, o *Object) ([]ByteRange, *awserrors.Error) {
+	bytesPrefix := "bytes="
+	if !strings.HasPrefix(rangeHeader, bytesPrefix) {
+		awserrors.XXX_TODO("unknown range header unit")
+	}
+
+	ranges := strings.Split(rangeHeader[len(bytesPrefix):], ",")
+	var result []ByteRange
+
+	for _, encodedRange := range ranges {
+		trimmed := strings.TrimSpace(encodedRange)
+		splitRange := strings.Split(trimmed, "-")
+		if len(splitRange) != 2 {
+			return nil, awserrors.XXX_TODO("invalid range too many -")
+		}
+
+		// indexed from end of resource
+		if splitRange[0] == "" {
+			suffix, err := strconv.ParseInt(splitRange[1], 10, 64)
+			if err != nil {
+				return nil, awserrors.XXX_TODO(err.Error())
+			}
+			result = append(result, ByteRange{
+				startByte: o.ContentLength - suffix,
+				endByte:   o.ContentLength,
+			})
+			continue
+
+		}
+
+		// Suffix
+		if splitRange[1] == "" {
+			startByte, err := strconv.ParseInt(splitRange[0], 10, 64)
+			if err != nil {
+				return nil, awserrors.XXX_TODO(err.Error())
+			}
+			result = append(result, ByteRange{
+				startByte: startByte,
+				endByte:   o.ContentLength,
+			})
+			continue
+		}
+
+		// Both numbers included
+		startByte, err := strconv.ParseInt(splitRange[0], 10, 64)
+		if err != nil {
+			return nil, awserrors.XXX_TODO(err.Error())
+		}
+		endByteInclusive, err := strconv.ParseInt(splitRange[1], 10, 64)
+		if err != nil {
+			return nil, awserrors.XXX_TODO(err.Error())
+		}
+		result = append(result, ByteRange{
+			startByte: startByte,
+			endByte:   endByteInclusive + 1,
+		})
+	}
+	return result, nil
+}
+
+func (s *S3) readerForRange(object *Object, br ByteRange) (io.Reader, *awserrors.Error) {
+	var parts []Part
+	if len(object.Parts) == 0 {
+		parts = []Part{{MD5: object.MD5, Size: object.ContentLength}}
+	} else {
+		parts = object.Parts
+	}
+
+	// bytesUntilStart is zero if we have already passed the start, otherwise it is the total number
+	// of bytes we must skip before starting our response.
+	bytesUntilStart := br.startByte
+	bytesUntilEnd := br.endByte
+	var readers []io.Reader
+	// Loop over parts in order, updating bytesUntilStart and bytesUntilEnd. If the chunk lies
+	// within the range that must be returned, use a section reader to capture the appropriate range.
+	for _, part := range parts {
+		// If we've already passed the end, break
+		if bytesUntilEnd <= 0 {
+			break
+		}
+
+		size := part.Size
+		// If we haven't reached the start yet, skip the chunk.
+		if bytesUntilStart > size {
+			bytesUntilStart -= size
+			bytesUntilEnd -= size
+			continue
+		}
+
+		// Otherwise, open a reader for this chunk.
+		f, err := os.Open(s.filepath(part.MD5))
+		if err != nil {
+			return nil, awserrors.XXX_TODO(err.Error())
+		}
+		var bytesToReadFromThisChunk int64
+		if bytesUntilEnd >= size {
+			// Read the entire chunk after the start.
+			bytesToReadFromThisChunk = size - bytesUntilStart
+		} else {
+			// Read everything from the start until the end.
+			bytesToReadFromThisChunk = bytesUntilEnd - bytesUntilStart
+		}
+
+		readers = append(readers, io.NewSectionReader(f, bytesUntilStart, bytesToReadFromThisChunk))
+		bytesUntilStart = 0
+		bytesUntilEnd -= int64(bytesToReadFromThisChunk)
+	}
+	return io.MultiReader(readers...), nil
+}
+
 func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput, *awserrors.Error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -200,24 +317,34 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		LastModified: time.Now().UTC().Format(time.RFC822Z),
 	}
 	if includeBody {
-		var md5s [][]byte
-		if len(object.Parts) == 0 {
-			md5s = [][]byte{object.MD5}
+		var ranges []ByteRange
+		if input.Range != "" {
+			var err *awserrors.Error
+			ranges, err = parseRangeHeader(input.Range, object)
+			if err != nil {
+				return nil, err
+			}
 		} else {
-			for _, part := range object.Parts {
-				md5s = append(md5s, part.MD5)
+			ranges = []ByteRange{
+				{
+					startByte: 0,
+					endByte:   object.ContentLength,
+				},
 			}
 		}
 
 		var readers []io.Reader
-		for _, md5 := range md5s {
-			f, err := os.Open(s.filepath(md5))
+		totalLength := int64(0)
+		for _, rangeItem := range ranges {
+			totalLength += (rangeItem.endByte - rangeItem.startByte)
+			readerForRange, err := s.readerForRange(object, rangeItem)
 			if err != nil {
-				return nil, awserrors.XXX_TODO(err.Error())
+				return nil, err
 			}
-			readers = append(readers, f)
+			readers = append(readers, readerForRange)
 		}
 		output.Body = io.MultiReader(readers...)
+		output.ContentLength = totalLength
 	}
 	return output, nil
 }

@@ -89,6 +89,7 @@ type GetObjectInput struct {
 	PartNumber           string `s3:"query:partNumber"`
 	SSECustomerAlgorithm string `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
 	SSECustomerKey       string `s3:"header:x-amz-server-side-encryption-customer-key"`
+	Range                string `s3:"header:range"`
 	// TODO: md5 check
 }
 

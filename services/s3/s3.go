@@ -305,6 +305,7 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		return nil, NotFound()
 	}
 
+	timeFormat := "Mon, 02 Jan 2006 15:04:05 GMT"
 	output := &GetObjectOutput{
 		ContentLength:        object.ContentLength,
 		ETag:                 object.ETag,
@@ -314,7 +315,7 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		SSECustomerKey:       object.SSECustomerKey,
 		SSEKMSKeyId:          object.SSEKMSKeyId,
 		// Bafflingly, This format is expected here.
-		LastModified: time.Now().UTC().Format(time.RFC822Z),
+		LastModified: time.Now().UTC().Format(timeFormat),
 	}
 	if includeBody {
 		var ranges []ByteRange

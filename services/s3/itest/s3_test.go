@@ -59,12 +59,14 @@ func TestMultipartUpload(t *testing.T) {
 	kmsKey := "custom-kms-key"
 	key := "test-key"
 	kmsContext := "foo=bar"
+	tagging := "hello=world"
 	upload, err := client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
 		Bucket:                  &bucket,
 		Key:                     &key,
 		ServerSideEncryption:    types.ServerSideEncryptionAwsKms,
 		SSEKMSKeyId:             &kmsKey,
 		SSEKMSEncryptionContext: &kmsContext,
+		Tagging: &tagging,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -172,6 +174,24 @@ func TestMultipartUpload(t *testing.T) {
 		PartNumber: 1,
 	}}) {
 		t.Fatal("wrong parts", partsOutput.Parts)
+	}
+
+	objectTagging, err := client.GetObjectTagging(ctx, &s3.GetObjectTaggingInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags := objectTagging.TagSet
+	if len(tags) != 1 {
+		t.Fatal("bad tags", objectTagging.TagSet)
+	}
+	if *tags[0].Key != "key" {
+		t.Fatal("bad tag")
+	}
+	if *tags[0].Value != "value" {
+		t.Fatal("bad value")
 	}
 }
 

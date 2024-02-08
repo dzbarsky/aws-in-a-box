@@ -156,6 +156,7 @@ type CreateMultipartUploadInput struct {
 	Bucket                  string `s3:"bucket"`
 	Key                     string `s3:"key"`
 	ContentType             string `s3:"header:content-type"`
+	Tagging                 string `s3:"header:x-amz-tagging"`
 	ServerSideEncryption    string `s3:"header:x-amz-server-side-encryption"`
 	SSEKMSKeyId             string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
 	SSEKMSEncryptionContext string `s3:"header:x-amz-server-side-encryption-context"`

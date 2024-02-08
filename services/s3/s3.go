@@ -57,6 +57,7 @@ type multipartUpload struct {
 	Status UploadStatus
 	Bucket string
 	Key    string
+	Tagging string
 	Parts  map[int]Part
 	// For metadata
 	Object Object
@@ -608,11 +609,12 @@ func (s *S3) CreateMultipartUpload(input CreateMultipartUploadInput) (*CreateMul
 	}
 
 	uploadId := base64.RawURLEncoding.EncodeToString(uuid.Must(uuid.NewV4()).Bytes())
-
+	fmt.Sprintf("Daphne Tagging " + input.Tagging)
 	s.multipartUploads[uploadId] = &multipartUpload{
 		Status: UploadStatusInProgress,
 		Bucket: input.Bucket,
 		Key:    input.Key,
+		Tagging: input.Tagging,
 		Parts:  make(map[int]Part),
 		// Just for metadata
 		Object: Object{

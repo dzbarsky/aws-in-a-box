@@ -547,6 +547,7 @@ func (s *S3) GetObjectTagging(input GetObjectTaggingInput) (*GetObjectTaggingOut
 			})
 		}
 	}
+
 	return tagging, nil
 }
 
@@ -609,7 +610,6 @@ func (s *S3) CreateMultipartUpload(input CreateMultipartUploadInput) (*CreateMul
 	}
 
 	uploadId := base64.RawURLEncoding.EncodeToString(uuid.Must(uuid.NewV4()).Bytes())
-	fmt.Sprintf("Daphne Tagging " + input.Tagging)
 	s.multipartUploads[uploadId] = &multipartUpload{
 		Status: UploadStatusInProgress,
 		Bucket: input.Bucket,
@@ -764,6 +764,7 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 	}
 	object.ContentLength = totalContentLength
 	object.ETag = etag(combinedMD5s) + "-" + strconv.Itoa(len(input.Part))
+	object.Tagging = upload.Tagging
 
 	s.buckets[input.Bucket].objects[input.Key] = &object
 	upload.Status = UploadStatusCompleted

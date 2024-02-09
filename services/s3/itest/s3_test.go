@@ -65,6 +65,7 @@ func TestMultipartUpload(t *testing.T) {
 		ServerSideEncryption:    types.ServerSideEncryptionAwsKms,
 		SSEKMSKeyId:             &kmsKey,
 		SSEKMSEncryptionContext: &kmsContext,
+		Tagging: aws.String("foo=bar"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -172,6 +173,24 @@ func TestMultipartUpload(t *testing.T) {
 		PartNumber: 1,
 	}}) {
 		t.Fatal("wrong parts", partsOutput.Parts)
+	}
+
+	objectTagging, err := client.GetObjectTagging(ctx, &s3.GetObjectTaggingInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags := objectTagging.TagSet
+	if len(tags) != 1 {
+		t.Fatal("bad tags", objectTagging.TagSet)
+	}
+	if *tags[0].Key != "foo" {
+		t.Fatal("bad tag")
+	}
+	if *tags[0].Value != "bar" {
+		t.Fatal("bad value")
 	}
 }
 

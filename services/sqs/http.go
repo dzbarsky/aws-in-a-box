@@ -7,6 +7,8 @@ import (
 
 func registerHTTPHandlers(logger *slog.Logger, registry map[string]http.HandlerFunc, s *SQS) {
 	register(logger, registry, "CreateQueue", s.CreateQueue)
+	register(logger, registry, "ChangeMessageVisibility", s.ChangeMessageVisibility)
+	register(logger, registry, "ChangeMessageVisibilityBatch", s.ChangeMessageVisibilityBatch)
 	register(logger, registry, "DeleteMessage", s.DeleteMessage)
 	register(logger, registry, "DeleteMessageBatch", s.DeleteMessageBatch)
 	register(logger, registry, "DeleteQueue", s.DeleteQueue)

@@ -399,6 +399,22 @@ func (s *SQS) DeleteMessage(input DeleteMessageInput) (*DeleteMessageOutput, *aw
 }
 
 func (s *SQS) lockedDeleteMessage(queue *Queue, receiptHandle string) *awserrors.Error {
+	return s.lockedMutateMessage(queue, receiptHandle, func(m *Message) {
+		m.Deleted = true
+	})
+}
+
+func (s *SQS) lockedUpdateVisibilityMessage(queue *Queue, receiptHandle string, visibilityTimeout int) *awserrors.Error {
+	return s.lockedMutateMessage(queue, receiptHandle, func(m *Message) {
+		m.VisibleAt = time.Now().Add(time.Duration(visibilityTimeout) * time.Second)
+	})
+}
+
+func (s *SQS) lockedMutateMessage(
+	queue *Queue,
+	receiptHandle string,
+	mutateFunc func(*Message),
+) *awserrors.Error {
 	uuid, err := base64.StdEncoding.DecodeString(receiptHandle)
 	if err != nil {
 		return InvalidIdFormat("")
@@ -406,7 +422,7 @@ func (s *SQS) lockedDeleteMessage(queue *Queue, receiptHandle string) *awserrors
 
 	for _, message := range queue.Messages {
 		if bytes.Equal(message.UUID.Bytes(), uuid) {
-			message.Deleted = true
+			mutateFunc(message)
 			return nil
 		}
 	}
@@ -459,7 +475,7 @@ func (s *SQS) DeleteMessageBatch(input DeleteMessageBatchInput) (*DeleteMessageB
 
 		err := s.lockedDeleteMessage(queue, entry.ReceiptHandle)
 		if err == nil {
-			output.Successful = append(output.Successful, DeleteMessageBatchResultEntry{
+			output.Successful = append(output.Successful, BatchResultSuccessEntry{
 				Id: entry.Id,
 			})
 		} else {
@@ -472,7 +488,7 @@ func (s *SQS) DeleteMessageBatch(input DeleteMessageBatchInput) (*DeleteMessageB
 		}
 	}
 
-	return nil, nil
+	return output, nil
 }
 
 // https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html
@@ -528,4 +544,79 @@ func (s *SQS) lockedSetQueueAttributes(queue *Queue, attributes map[string]strin
 	}
 
 	return nil
+}
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_ChangeMessageVisibility.html
+func (s *SQS) ChangeMessageVisibility(input ChangeMessageVisibilityInput) (*ChangeMessageVisibilityOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	queue, ok := s.queuesByName[s.getQueueName(input.QueueUrl)]
+	if !ok {
+		return nil, QueueDoesNotExist("")
+	}
+
+	err := s.lockedUpdateVisibilityMessage(queue, input.ReceiptHandle, input.VisibilityTimeout)
+	return nil, err
+}
+
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_ChangeMessageVisibilityBatch.html
+func (s *SQS) ChangeMessageVisibilityBatch(input ChangeMessageVisibilityBatchInput) (*ChangeMessageVisibilityBatchOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	queue, ok := s.queuesByName[s.getQueueName(input.QueueUrl)]
+	if !ok {
+		return nil, QueueDoesNotExist("")
+	}
+
+	if len(input.Entries) == 0 {
+		return nil, EmptyBatchRequest("")
+	}
+
+	if len(input.Entries) > maxEntriesInDeleteBatch {
+		return nil, TooManyEntriesInBatchRequest("")
+	}
+
+	seen := make(map[string]struct{})
+
+	output := &ChangeMessageVisibilityBatchOutput{}
+	for _, entry := range input.Entries {
+		if _, ok := seen[entry.Id]; ok {
+			output.Failed = append(output.Failed, BatchResultErrorEntry{
+				Code:        "BatchEntryIdsNotDistinct",
+				Message:     "",
+				Id:          entry.Id,
+				SenderFault: true,
+			})
+			continue
+		}
+
+		seen[entry.Id] = struct{}{}
+		if len(entry.Id) > maxBatchEntryIdLength || !batchEntryIdRegex.MatchString(entry.Id) {
+			output.Failed = append(output.Failed, BatchResultErrorEntry{
+				Code:        "InvalidBatchEntryId",
+				Message:     "",
+				Id:          entry.Id,
+				SenderFault: true,
+			})
+			continue
+		}
+
+		err := s.lockedUpdateVisibilityMessage(queue, entry.ReceiptHandle, entry.VisibilityTimeout)
+		if err == nil {
+			output.Successful = append(output.Successful, BatchResultSuccessEntry{
+				Id: entry.Id,
+			})
+		} else {
+			output.Failed = append(output.Failed, BatchResultErrorEntry{
+				Code:        err.Body.Type,
+				Message:     err.Body.Message,
+				Id:          entry.Id,
+				SenderFault: err.Code == 400,
+			})
+		}
+	}
+
+	return output, nil
 }

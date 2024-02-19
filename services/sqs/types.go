@@ -180,7 +180,7 @@ type DeleteMessageBatchInput struct {
 
 type DeleteMessageBatchOutput struct {
 	Failed     []BatchResultErrorEntry
-	Successful []DeleteMessageBatchResultEntry
+	Successful []BatchResultSuccessEntry
 }
 
 type BatchResultErrorEntry struct {
@@ -190,7 +190,7 @@ type BatchResultErrorEntry struct {
 	SenderFault bool
 }
 
-type DeleteMessageBatchResultEntry struct {
+type BatchResultSuccessEntry struct {
 	Id string
 }
 
@@ -200,3 +200,25 @@ type SetQueueAttributesInput struct {
 }
 
 type SetQueueAttributesOutput struct{}
+
+type ChangeMessageVisibilityInput struct {
+	QueueUrl          string
+	ReceiptHandle     string
+	VisibilityTimeout int
+}
+
+type ChangeMessageVisibilityOutput struct{}
+
+type ChangeMessageVisibilityBatchInput struct {
+	QueueUrl string
+	Entries  []struct {
+		Id                string
+		ReceiptHandle     string
+		VisibilityTimeout int
+	}
+}
+
+type ChangeMessageVisibilityBatchOutput struct {
+	Failed     []BatchResultErrorEntry
+	Successful []BatchResultSuccessEntry
+}

@@ -47,10 +47,6 @@ func TestSendReceiveMessage_RoundtripAttributes(t *testing.T) {
 
 	resp, err := client.CreateQueue(ctx, &sqs.CreateQueueInput{
 		QueueName: aws.String("queue"),
-		Tags: map[string]string{
-			"k1": "v1",
-			"k2": "v2",
-		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -116,5 +112,92 @@ func TestSendReceiveMessage_RoundtripAttributes(t *testing.T) {
 			msg.MessageAttributes["binaryList"].BinaryListValues,
 			messageAttributes["binaryList"].BinaryListValues,
 		)
+	}
+}
+
+func TestMessageVisibility(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	resp, err := client.CreateQueue(ctx, &sqs.CreateQueueInput{
+		QueueName: aws.String("queue"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = client.SendMessage(ctx, &sqs.SendMessageInput{
+		QueueUrl:    resp.QueueUrl,
+		MessageBody: aws.String("body"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	receiveResp, err := client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
+		QueueUrl: resp.QueueUrl,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(receiveResp.Messages) != 1 {
+		t.Fatalf("Message should be visible")
+	}
+	receiptHandle := receiveResp.Messages[0].ReceiptHandle
+
+	receiveResp, err = client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
+		QueueUrl: resp.QueueUrl,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(receiveResp.Messages) != 0 {
+		t.Fatalf("Message should be invisible")
+	}
+
+	_, err = client.ChangeMessageVisibility(ctx, &sqs.ChangeMessageVisibilityInput{
+		QueueUrl:      resp.QueueUrl,
+		ReceiptHandle: receiptHandle,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	receiveResp, err = client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
+		QueueUrl: resp.QueueUrl,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(receiveResp.Messages) != 1 {
+		t.Fatalf("Message should be visible again")
+	}
+	receiptHandle = receiveResp.Messages[0].ReceiptHandle
+
+	_, err = client.ChangeMessageVisibility(ctx, &sqs.ChangeMessageVisibilityInput{
+		QueueUrl:      resp.QueueUrl,
+		ReceiptHandle: receiptHandle,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = client.DeleteMessage(ctx, &sqs.DeleteMessageInput{
+		QueueUrl:      resp.QueueUrl,
+		ReceiptHandle: receiptHandle,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	receiveResp, err = client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
+		QueueUrl: resp.QueueUrl,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(receiveResp.Messages) != 0 {
+		t.Fatalf("Deleted message should not be returned")
 	}
 }

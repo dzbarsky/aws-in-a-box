@@ -295,8 +295,8 @@ SQS support is in in-progress.
 |------------------------------|----------------|--------------------|
 | AddPermission                | ❌ Unsupported  |                    |
 | CancelMessageMoveTask        | ❌ Unsupported  |                    |
-| ChangeMessageVisibility      | ❌ Unsupported  |                    |
-| ChangeMessageVisibilityBatch | ❌ Unsupported  |                    |
+| ChangeMessageVisibility      | ✅ Supported    |                    |
+| ChangeMessageVisibilityBatch | ✅ Supported    |                    |
 | CreateQueue                  | ✅ Supported    |                    |
 | DeleteMessage                | ✅ Supported    |                    |
 | DeleteMessageBatch           | ✅ Supported    |                    |

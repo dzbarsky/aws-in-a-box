@@ -23,11 +23,11 @@ const AWSTraceHeaderAttributeName = "AWSTraceHeader"
 
 type SendMessageInput struct {
 	DelaySeconds            int
-	MessageAttributes       map[string]APIAttribute
+	MessageAttributes       APIMessageAttributes
 	MessageBody             string
 	MessageDeduplicationId  string
 	MessageGroupId          string
-	MessageSystemAttributes map[string]APIAttribute
+	MessageSystemAttributes APIMessageAttributes
 	QueueUrl                string
 }
 
@@ -42,10 +42,10 @@ type SendMessageOutput struct {
 }
 
 type APIAttribute struct {
-	BinaryListValues [][]byte
+	BinaryListValues [][]byte `xml:"BinaryListValue"`
 	BinaryValue      []byte
 	DataType         string
-	StringListValues []string
+	StringListValues []string `xml:"StringListValue"`
 	StringValue      string
 }
 
@@ -99,30 +99,30 @@ type ListQueueTagsOutput struct {
 }
 
 // https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_ReceiveMessage.html#SQS-ReceiveMessage-request-AttributeNames
-type AttributeName string
+type SystemAttributeName string
 
 const (
-	All                              = AttributeName("All")
-	ApproximateFirstReceiveTimestamp = AttributeName("ApproximateFirstReceiveTimestamp")
-	ApproximateReceiveCount          = AttributeName("ApproximateReceiveCount")
-	AWSTraceHeader                   = AttributeName("AWSTraceHeader")
-	SenderId                         = AttributeName("SenderId")
-	SentTimestamp                    = AttributeName("SentTimestamp")
-	// TODO: this one not listedin https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_ReceiveMessage.html#SQS-ReceiveMessage-request-MessageSystemAttributeNames
-	SqsManagedSseEnabled     = AttributeName("SqsManagedSseEnabled")
-	MessageDeduplicationId   = AttributeName("MessageDeduplicationId")
-	MessageGroupId           = AttributeName("MessageGroupId")
-	SequenceNumber           = AttributeName("SequenceNumber")
-	DeadLetterQueueSourceArn = AttributeName("DeadLetterQueueSourceArn")
+	All                              = SystemAttributeName("All")
+	ApproximateFirstReceiveTimestamp = SystemAttributeName("ApproximateFirstReceiveTimestamp")
+	ApproximateReceiveCount          = SystemAttributeName("ApproximateReceiveCount")
+	AWSTraceHeader                   = SystemAttributeName("AWSTraceHeader")
+	SenderId                         = SystemAttributeName("SenderId")
+	SentTimestamp                    = SystemAttributeName("SentTimestamp")
+	// TODO: this one not listed in https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_ReceiveMessage.html#SQS-ReceiveMessage-request-MessageSystemAttributeNames
+	SqsManagedSseEnabled     = SystemAttributeName("SqsManagedSseEnabled")
+	MessageDeduplicationId   = SystemAttributeName("MessageDeduplicationId")
+	MessageGroupId           = SystemAttributeName("MessageGroupId")
+	SequenceNumber           = SystemAttributeName("SequenceNumber")
+	DeadLetterQueueSourceArn = SystemAttributeName("DeadLetterQueueSourceArn")
 	// TODO: there are more
 )
 
 type ReceiveMessageInput struct {
 	// Deprecated
-	AttributeNames              []AttributeName
+	AttributeNames              []SystemAttributeName
 	MaxNumberOfMessages         int
 	MessageAttributeNames       []string
-	MessageSystemAttributeNames []AttributeName
+	MessageSystemAttributeNames []SystemAttributeName
 	QueueUrl                    string
 	// ReceiveRequestAttemptId
 	VisibilityTimeout int
@@ -134,12 +134,31 @@ type ReceiveMessageOutput struct {
 	Message []APIMessage
 }
 
+type APIAttributes map[string]string
+type APIMessageAttributes map[string]APIAttribute
+
+func (a APIMessageAttributes) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	type XMLAttribute struct {
+		Name  string
+		Value APIAttribute
+	}
+	attrs := make([]XMLAttribute, 0, len(a))
+	for k, v := range a {
+		attrs = append(attrs, XMLAttribute{
+			Name:  k,
+			Value: v,
+		})
+	}
+
+	return e.EncodeElement(attrs, start)
+}
+
 type APIMessage struct {
-	Attributes             map[string]string
+	//Attributes             APIAttributes
 	Body                   string
 	MD5OfBody              string
 	MD5OfMessageAttributes string
-	MessageAttributes      map[string]APIAttribute
+	MessageAttributes      APIMessageAttributes `xml:"MessageAttribute"`
 	MessageId              string
 	ReceiptHandle          string
 }

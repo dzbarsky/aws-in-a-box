@@ -8,5 +8,6 @@ go_test(
         "//services/sqs",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2_service_sqs//:sqs",
+        "@com_github_aws_aws_sdk_go_v2_service_sqs//types",
     ],
 )

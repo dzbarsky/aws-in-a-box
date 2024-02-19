@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"reflect"
+	"strconv"
 
 	"github.com/gofrs/uuid/v5"
 
@@ -68,31 +69,100 @@ func unmarshal(r *http.Request, target any) error {
 
 	for i := 0; i < ty.NumField(); i++ {
 		field := ty.Field(i)
+		fieldSingular := field.Name[:len(field.Name)-1]
+
 		f := v.Field(i)
 
-		switch field.Type.Kind() {
+		switch k := field.Type.Kind(); k {
+		case reflect.Int:
+			v := r.FormValue(field.Name)
+			if v == "" {
+				continue
+			}
+			i, err := strconv.Atoi(r.FormValue(field.Name))
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(i))
 		case reflect.String:
 			f.Set(reflect.ValueOf(r.FormValue(field.Name)))
+		case reflect.Slice:
+			for i := 1; ; i++ {
+				v := r.FormValue(fmt.Sprintf("%s.%d", fieldSingular, i))
+				if v == "" {
+					break
+				}
+				f.Set(reflect.Append(f, reflect.ValueOf(v)))
+			}
 		case reflect.Map:
 			// Initialize the map and then read as many elements as we can.
 			f.Set(reflect.MakeMap(f.Type()))
 
+		EntriesLoop:
 			for i := 1; ; i++ {
-				mapKey := r.FormValue(fmt.Sprintf("%s.%d.Key", field.Name, i))
-				mapValue := r.FormValue(fmt.Sprintf("%s.%d.Value", field.Name, i))
-				if mapKey == "" && mapValue == "" {
-					break
+				// TODO(zbarsky): this is pretty HAX way to control the deserialization
+				switch field.Name {
+				case "Attribute", "Tag":
+					mapKey := r.FormValue(fmt.Sprintf("%s.%d.Key", fieldSingular, i))
+					mapValue := r.FormValue(fmt.Sprintf("%s.%d.Value", fieldSingular, i))
+					if mapKey == "" && mapValue == "" {
+						break EntriesLoop
+					}
+					if mapKey != "" && mapValue != "" {
+						f.SetMapIndex(reflect.ValueOf(mapKey), reflect.ValueOf(mapValue))
+						continue EntriesLoop
+					}
+					return errors.New("mismatched key/value?")
+				case "MessageAttributes", "MessageSystemAttributes":
+					mapKey := r.FormValue(fmt.Sprintf("%s.%d.Name", fieldSingular, i))
+					mapValue := extractAPIAttribute(
+						fmt.Sprintf("%s.%d.Value", fieldSingular, i),
+						r.FormValue)
+					if mapKey == "" && mapValue.DataType == "" {
+						break EntriesLoop
+					}
+					if mapKey != "" && mapValue.DataType != "" {
+						f.SetMapIndex(reflect.ValueOf(mapKey), reflect.ValueOf(mapValue))
+						continue EntriesLoop
+					}
+					return errors.New("mismatched key/value?")
+				default:
+					panic("Unknown field: " + field.Name)
 				}
-				if mapKey != "" && mapValue != "" {
-					f.SetMapIndex(reflect.ValueOf(mapKey), reflect.ValueOf(mapValue))
-					continue
-				}
-				return errors.New("mismatched key/value?")
 			}
+		default:
+			panic(field)
 		}
+
 	}
 
 	return nil
+}
+
+func extractAPIAttribute(prefix string, get func(string) string) APIAttribute {
+	attr := APIAttribute{
+		BinaryValue: []byte(get(prefix + ".BinaryValue")),
+		StringValue: get(prefix + ".StringValue"),
+		DataType:    get(prefix + ".DataType"),
+	}
+
+	for i := 1; ; i++ {
+		v := get(fmt.Sprintf("%s.BinaryListValue.%d", prefix, i))
+		if v == "" {
+			break
+		}
+		attr.BinaryListValues = append(attr.BinaryListValues, []byte(v))
+	}
+
+	for i := 1; ; i++ {
+		v := get(fmt.Sprintf("%s.StringListValue.%d", prefix, i))
+		if v == "" {
+			break
+		}
+		attr.StringListValues = append(attr.StringListValues, v)
+	}
+
+	return attr
 }
 
 type xmlResp[T any] struct {

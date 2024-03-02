@@ -65,7 +65,7 @@ func TestMultipartUpload(t *testing.T) {
 		ServerSideEncryption:    types.ServerSideEncryptionAwsKms,
 		SSEKMSKeyId:             &kmsKey,
 		SSEKMSEncryptionContext: &kmsContext,
-		Tagging: aws.String("foo=bar"),
+		Tagging:                 aws.String("foo=bar"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -432,25 +432,29 @@ func TestBucketTagging(t *testing.T) {
 	}
 }
 
+func TestDeleteObject(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: &bucket,
+		Key:    aws.String("1"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDeleteObjects(t *testing.T) {
 	ctx := context.Background()
 	client, srv := makeClientServerPair()
 	defer srv.Shutdown(ctx)
 
-	for i := 0; i < 4; i++ {
-		_, err := client.PutObject(ctx, &s3.PutObjectInput{
-			Bucket: &bucket,
-			Key:    aws.String(strconv.Itoa(i)),
-			Body:   strings.NewReader(""),
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+	_, err := client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: &bucket,
-		Key:    aws.String("1"),
+		Key:    aws.String("key1"),
+		Body:   strings.NewReader(""),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -460,7 +464,7 @@ func TestDeleteObjects(t *testing.T) {
 		Bucket: &bucket,
 		Delete: &types.Delete{
 			Objects: []types.ObjectIdentifier{
-				{Key: aws.String("2")},
+				{Key: aws.String("key1")},
 			},
 			Quiet: true,
 		},
@@ -476,23 +480,37 @@ func TestDeleteObjects(t *testing.T) {
 		Bucket: &bucket,
 		Delete: &types.Delete{
 			Objects: []types.ObjectIdentifier{
-				{Key: aws.String("3")},
-				{Key: aws.String("4")},
+				{Key: aws.String("key1")},
+				{Key: aws.String("key2")},
 			},
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(output.Deleted, []types.DeletedObject{
-		{Key: aws.String("3")},
-	}) {
-		t.Fatal("wrong deletion?", output.Deleted)
+	if *output.Deleted[0].Key != "key1" {
+		t.Fatal("wrong deletion?")
 	}
-	if !reflect.DeepEqual(output.Errors, []types.Error{
-		{Key: aws.String("4"), Code: aws.String("NotFound"), Message: aws.String("")},
-	}) {
-		t.Fatal("wrong error?", output.Errors)
+	if *output.Deleted[1].Key != "key2" {
+		t.Fatal("wrong deletion?")
+	}
+
+	output, err = client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		Bucket: aws.String("test-bucket2"),
+		Delete: &types.Delete{
+			Objects: []types.ObjectIdentifier{
+				{Key: aws.String("key1")},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *output.Errors[0].Key != "key1" {
+		t.Fatal("wrong deletion?")
+	}
+	if *output.Errors[0].Code != "NotFound" {
+		t.Fatal("wrong deletion?", *output.Errors[0].Code)
 	}
 }
 

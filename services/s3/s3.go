@@ -54,11 +54,11 @@ const (
 )
 
 type multipartUpload struct {
-	Status UploadStatus
-	Bucket string
-	Key    string
+	Status  UploadStatus
+	Bucket  string
+	Key     string
 	Tagging string
-	Parts  map[int]Part
+	Parts   map[int]Part
 	// For metadata
 	Object Object
 }
@@ -474,11 +474,6 @@ func (s *S3) DeleteObject(input DeleteObjectInput) (*DeleteObjectOutput, *awserr
 		return nil, NotFound()
 	}
 
-	_, ok = b.objects[input.Key]
-	if !ok {
-		return nil, NotFound()
-	}
-
 	delete(b.objects, input.Key)
 	return &DeleteObjectOutput{}, nil
 }
@@ -488,18 +483,11 @@ func (s *S3) DeleteObjects(input DeleteObjectsInput) (*DeleteObjectsOutput, *aws
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	b, ok := s.buckets[input.Bucket]
-	if !ok {
-		// Ensure the rest of the lookups will be misses
-		b = &Bucket{
-			objects: map[string]*Object{},
-		}
-	}
+	b, bucketExists := s.buckets[input.Bucket]
 
 	output := &DeleteObjectsOutput{}
 	for _, object := range input.Object {
-		_, ok = b.objects[object.Key]
-		if !ok {
+		if !bucketExists {
 			err := NotFound().Body
 			output.Error = append(output.Error, DeleteObjectsError{
 				Code:    err.Type,
@@ -611,11 +599,11 @@ func (s *S3) CreateMultipartUpload(input CreateMultipartUploadInput) (*CreateMul
 
 	uploadId := base64.RawURLEncoding.EncodeToString(uuid.Must(uuid.NewV4()).Bytes())
 	s.multipartUploads[uploadId] = &multipartUpload{
-		Status: UploadStatusInProgress,
-		Bucket: input.Bucket,
-		Key:    input.Key,
+		Status:  UploadStatusInProgress,
+		Bucket:  input.Bucket,
+		Key:     input.Key,
 		Tagging: input.Tagging,
-		Parts:  make(map[int]Part),
+		Parts:   make(map[int]Part),
 		// Just for metadata
 		Object: Object{
 			ContentType:             input.ContentType,

@@ -294,9 +294,18 @@ func (s *S3) readerForRange(object *Object, br ByteRange) (io.Reader, int64, *aw
 		}
 
 		readers = append(readers, io.NewSectionReader(f, bytesUntilStart, bytesToReadFromThisChunk))
+		bytesUntilEnd -= (bytesUntilStart + bytesToReadFromThisChunk)
 		bytesUntilStart = 0
-		bytesUntilEnd -= bytesToReadFromThisChunk
 		readLength += bytesToReadFromThisChunk
+	}
+	if bytesUntilStart > 0 {
+		return nil, 0, &awserrors.Error{
+			Code: 416,
+			Body: awserrors.ErrorBody{
+				Type:    "InvalidRange",
+				Message: "The requested range is not satisfiable",
+			},
+		}
 	}
 	return io.MultiReader(readers...), readLength, nil
 }

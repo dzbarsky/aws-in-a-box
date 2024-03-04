@@ -198,6 +198,7 @@ type RangeTestCase struct {
 	Name  string
 	Range string
 	Body  string
+	Error bool
 }
 
 func TestRangeQuery(t *testing.T) {
@@ -216,7 +217,7 @@ func TestRangeQuery(t *testing.T) {
 	id := upload.UploadId
 
 	var parts []types.CompletedPart
-	for i, s := range []string{"hello", " world ", "hi"} {
+	for i, s := range []string{"hello", " world ", "hi", " things are fun"} {
 		output, err := client.UploadPart(ctx, &s3.UploadPartInput{
 			PartNumber: int32(i),
 			Bucket:     &bucket,
@@ -246,11 +247,12 @@ func TestRangeQuery(t *testing.T) {
 	}
 
 	testCases := []RangeTestCase{
-		{Name: "entire range", Range: "bytes=0-13", Body: "hello world hi"},
+		{Name: "entire range", Range: "bytes=0-28", Body: "hello world hi things are fun"},
 		{Name: "Skip entire first part and half of second part", Range: "bytes=8-13", Body: "rld hi"},
 		{Name: "Prefix", Range: "bytes=0-8", Body: "hello wor"},
-		{Name: "Suffix", Range: "bytes=-4", Body: "d hi"},
-		{Name: "Beyond the end of the object", Range: "bytes=0-100", Body: "hello world hi"},
+		{Name: "Suffix", Range: "bytes=-4", Body: " fun"},
+		{Name: "Ending beyond the end of the object", Range: "bytes=0-100", Body: "hello world hi things are fun"},
+		{Name: "Starting beyond the end of the object", Range: "bytes=100-", Body: "", Error: true},
 	}
 
 	for _, testCase := range testCases {
@@ -261,6 +263,13 @@ func TestRangeQuery(t *testing.T) {
 				Key:    &key,
 				Range:  &testCase.Range,
 			})
+			if testCase.Error {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+
 			if err != nil {
 				t.Fatal(err)
 			}

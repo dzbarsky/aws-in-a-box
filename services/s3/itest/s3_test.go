@@ -250,6 +250,7 @@ func TestRangeQuery(t *testing.T) {
 		{Name: "Skip entire first part and half of second part", Range: "bytes=8-13", Body: "rld hi"},
 		{Name: "Prefix", Range: "bytes=0-8", Body: "hello wor"},
 		{Name: "Suffix", Range: "bytes=-4", Body: "d hi"},
+		{Name: "Beyond the end of the object", Range: "bytes=0-100", Body: "hello world hi"},
 	}
 
 	for _, testCase := range testCases {

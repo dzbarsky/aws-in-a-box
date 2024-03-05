@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"log/slog"
@@ -299,11 +300,23 @@ func (s *S3) readerForRange(object *Object, br ByteRange) (io.Reader, int64, *aw
 		readLength += bytesToReadFromThisChunk
 	}
 	if bytesUntilStart > 0 {
+		// For whatever reason, the AWS sdk requires that this error message is formatted correctly.
+		errorObj := InvalidRangeError{
+			Code:             "InvalidRange",
+			Message:          "The requested range is not satisfiable",
+			RangeRequested:   fmt.Sprintf("bytes=%d-%d", br.startByte, br.endByte-1),
+			ActualObjectSize: object.ContentLength,
+		}
+		serializedError, err := xml.Marshal(errorObj)
+		if err != nil {
+			return nil, 0, awserrors.XXX_TODO(err.Error())
+		}
+
 		return nil, 0, &awserrors.Error{
 			Code: 416,
 			Body: awserrors.ErrorBody{
 				Type:    "InvalidRange",
-				Message: "The requested range is not satisfiable",
+				Message: string(serializedError),
 			},
 		}
 	}

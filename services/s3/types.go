@@ -316,3 +316,13 @@ type ListObjectsV2Output struct {
 	Prefix                *string
 	StartAfter            *string
 }
+
+type InvalidRangeError struct {
+	XMLName          xml.Name `xml:"Error"`
+	Code             string
+	Message          string
+	RangeRequested   string
+	ActualObjectSize int64
+	RequestId        string
+	HostId           string
+}

@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"log/slog"
@@ -242,7 +243,14 @@ func parseRangeHeader(rangeHeader string, o *Object) ([]ByteRange, *awserrors.Er
 	return result, nil
 }
 
-func (s *S3) readerForRange(object *Object, br ByteRange) (io.Reader, *awserrors.Error) {
+// Returns a reader, a content length, and an error.
+//
+// When given a range that stretches beyond the length of an object, S3 will return the piece of
+// the object that exists, with an appropriate content length.
+//
+// When given a range that is entirely not within the object, S3 will return a 416 error. This is
+// currently not implemented.
+func (s *S3) readerForRange(object *Object, br ByteRange) (io.Reader, int64, *awserrors.Error) {
 	var parts []Part
 	if len(object.Parts) == 0 {
 		parts = []Part{{MD5: object.MD5, Size: object.ContentLength}}
@@ -255,6 +263,7 @@ func (s *S3) readerForRange(object *Object, br ByteRange) (io.Reader, *awserrors
 	bytesUntilStart := br.startByte
 	bytesUntilEnd := br.endByte
 	var readers []io.Reader
+	readLength := int64(0)
 	// Loop over parts in order, updating bytesUntilStart and bytesUntilEnd. If the chunk lies
 	// within the range that must be returned, use a section reader to capture the appropriate range.
 	for _, part := range parts {
@@ -274,7 +283,7 @@ func (s *S3) readerForRange(object *Object, br ByteRange) (io.Reader, *awserrors
 		// Otherwise, open a reader for this chunk.
 		f, err := os.Open(s.filepath(part.MD5))
 		if err != nil {
-			return nil, awserrors.XXX_TODO(err.Error())
+			return nil, 0, awserrors.XXX_TODO(err.Error())
 		}
 		var bytesToReadFromThisChunk int64
 		if bytesUntilEnd >= size {
@@ -286,10 +295,32 @@ func (s *S3) readerForRange(object *Object, br ByteRange) (io.Reader, *awserrors
 		}
 
 		readers = append(readers, io.NewSectionReader(f, bytesUntilStart, bytesToReadFromThisChunk))
+		bytesUntilEnd -= (bytesUntilStart + bytesToReadFromThisChunk)
 		bytesUntilStart = 0
-		bytesUntilEnd -= int64(bytesToReadFromThisChunk)
+		readLength += bytesToReadFromThisChunk
 	}
-	return io.MultiReader(readers...), nil
+	if bytesUntilStart > 0 {
+		// For whatever reason, the AWS sdk requires that this error message is formatted correctly.
+		errorObj := InvalidRangeError{
+			Code:             "InvalidRange",
+			Message:          "The requested range is not satisfiable",
+			RangeRequested:   fmt.Sprintf("bytes=%d-%d", br.startByte, br.endByte-1),
+			ActualObjectSize: object.ContentLength,
+		}
+		serializedError, err := xml.Marshal(errorObj)
+		if err != nil {
+			return nil, 0, awserrors.XXX_TODO(err.Error())
+		}
+
+		return nil, 0, &awserrors.Error{
+			Code: 416,
+			Body: awserrors.ErrorBody{
+				Type:    "InvalidRange",
+				Message: string(serializedError),
+			},
+		}
+	}
+	return io.MultiReader(readers...), readLength, nil
 }
 
 func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput, *awserrors.Error) {
@@ -338,8 +369,8 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		var readers []io.Reader
 		totalLength := int64(0)
 		for _, rangeItem := range ranges {
-			totalLength += (rangeItem.endByte - rangeItem.startByte)
-			readerForRange, err := s.readerForRange(object, rangeItem)
+			readerForRange, readLength, err := s.readerForRange(object, rangeItem)
+			totalLength += readLength
 			if err != nil {
 				return nil, err
 			}

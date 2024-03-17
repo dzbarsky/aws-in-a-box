@@ -52,13 +52,15 @@ You can also build from source with either go native tooling or with Bazel, see 
 ```
 
 ## Development
+You can use either native go tooling or Bazel.
+
 ### Running the service
-`go run .`
-`bazel run //:aws-in-a-box`
+- `go run .`
+- `bazel run //:aws-in-a-box`
 
 ### Running tests
-`go test ./...`
-`bazel test //...`
+- `go test ./...`
+- `bazel test //...`
 <br>
 
 ## Kinesis Support

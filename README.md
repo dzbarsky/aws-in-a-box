@@ -246,10 +246,10 @@ S3 blocks are persisted, but metadata is not. This will be fixed in the future.
 | ListBucketIntelligentTieringConfigurations  | ❌ Unsupported  |                                    |
 | ListBucketInventoryConfigurations           | ❌ Unsupported  |                                    |
 | ListBucketMetricsConfigurations             | ❌ Unsupported  |                                    |
-| ListBuckets                                 | ❌ Unsupported  | implement me!                      |
+| ListBuckets                                 | ✅ Supported    |                                    |
 | ListMultipartUploads                        | ❌ Unsupported  | implement me!                      |
 | ListObjects                                 | ❌ Unsupported  | implement me!                      |
-| ListObjectsV2                               | ❌ Unsupported  | implement me!                      |
+| ListObjectsV2                               | ✅ Supported    |                                    |
 | ListObjectVersions                          | ❌ Unsupported  |                                    |
 | ListParts                                   | ✅ Supported    |                                    |
 | PutBucketAccelerateConfiguration            | ❌ Unsupported  |                                    |

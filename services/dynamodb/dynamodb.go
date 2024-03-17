@@ -17,14 +17,13 @@ type Table struct {
 	KeySchema            []APIKeySchemaElement
 
 	PrimaryKeyAttributeName string
-	ItemsByPrimaryKey       map[string][]APIItem
-	ItemCount               int
+	ItemByPrimaryKey        map[string]APIItem
 }
 
 func (t *Table) toAPI() APITableDescription {
 	return APITableDescription{
 		AttributeDefinitions: t.AttributeDefinitions,
-		ItemCount:            t.ItemCount,
+		ItemCount:            len(t.ItemByPrimaryKey),
 		KeySchema:            t.KeySchema,
 		// TODO: delayed creation
 		TableARN:    t.ARN,
@@ -80,7 +79,7 @@ func (d *DynamoDB) CreateTable(input CreateTableInput) (*CreateTableOutput, *aws
 		AttributeDefinitions:    input.AttributeDefinitions,
 		KeySchema:               input.KeySchema,
 		PrimaryKeyAttributeName: primaryKeyAttributeName,
-		ItemsByPrimaryKey:       make(map[string][]APIItem),
+		ItemByPrimaryKey:        make(map[string]APIItem),
 	}
 	d.tablesByName[input.TableName] = t
 
@@ -96,7 +95,7 @@ func (d *DynamoDB) DescribeTable(input DescribeTableInput) (*DescribeTableOutput
 
 	t, ok := d.tablesByName[input.TableName]
 	if !ok {
-		return nil, awserrors.InvalidArgumentException("Table does not exist")
+		return nil, awserrors.ResourceNotFoundException("Table does not exist")
 	}
 
 	return &DescribeTableOutput{
@@ -111,12 +110,13 @@ func (d *DynamoDB) Scan(input ScanInput) (*ScanOutput, *awserrors.Error) {
 
 	t, ok := d.tablesByName[input.TableName]
 	if !ok {
-		return nil, awserrors.InvalidArgumentException("Table does not exist")
+		return nil, awserrors.ResourceNotFoundException("Table does not exist")
 	}
 
 	var allItems []APIItem
-	for _, items := range t.ItemsByPrimaryKey {
-		allItems = append(allItems, items...)
+	for _, item := range t.ItemByPrimaryKey {
+		// TODO: filter
+		allItems = append(allItems, item)
 	}
 
 	return &ScanOutput{
@@ -132,16 +132,37 @@ func (d *DynamoDB) PutItem(input PutItemInput) (*PutItemOutput, *awserrors.Error
 
 	t, ok := d.tablesByName[input.TableName]
 	if !ok {
-		return nil, awserrors.InvalidArgumentException("Table does not exist")
+		return nil, awserrors.ResourceNotFoundException("Table does not exist")
 	}
+	// TODO: Number and Binary primary key
 	key := input.Item[t.PrimaryKeyAttributeName].S
 	if key == "" {
 		return nil, awserrors.InvalidArgumentException("PrimaryKey must be provided (and string)")
 	}
-	t.ItemsByPrimaryKey[key] = append(t.ItemsByPrimaryKey[key], input.Item)
-	t.ItemCount += 1
+	t.ItemByPrimaryKey[key] = input.Item
 
 	return &PutItemOutput{}, nil
+}
+
+// https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
+func (d *DynamoDB) GetItem(input GetItemInput) (*GetItemOutput, *awserrors.Error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	t, ok := d.tablesByName[input.TableName]
+	if !ok {
+		return nil, awserrors.ResourceNotFoundException("Table does not exist")
+	}
+
+	// TODO: composite keys
+	// TODO: Binary and Number primary keys
+	key := input.Key[t.PrimaryKeyAttributeName].S
+	if key == "" {
+		return nil, awserrors.InvalidArgumentException("PrimaryKey must be provided (and string)")
+	}
+	item := t.ItemByPrimaryKey[key]
+
+	return &GetItemOutput{Item: item}, nil
 }
 
 // https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html
@@ -151,7 +172,7 @@ func (d *DynamoDB) UpdateItem(input UpdateItemInput) (*UpdateItemOutput, *awserr
 
 	t, ok := d.tablesByName[input.TableName]
 	if !ok {
-		return nil, awserrors.InvalidArgumentException("Table does not exist")
+		return nil, awserrors.ResourceNotFoundException("Table does not exist")
 	}
 
 	// TODO: composite keys
@@ -159,18 +180,10 @@ func (d *DynamoDB) UpdateItem(input UpdateItemInput) (*UpdateItemOutput, *awserr
 	if key == "" {
 		return nil, awserrors.InvalidArgumentException("PrimaryKey must be provided (and string)")
 	}
-	items := t.ItemsByPrimaryKey[key]
+	existingItem, ok := t.ItemByPrimaryKey[key]
 
-	itemCountIncrease := 0
-	var existingItem map[string]APIAttributeValue
-	if len(items) == 0 {
+	if !ok {
 		existingItem = make(map[string]APIAttributeValue)
-		itemCountIncrease = 1
-	} else if len(items) == 1 {
-		existingItem = items[0]
-		t.ItemsByPrimaryKey[key] = items[:0]
-	} else {
-		return nil, awserrors.XXX_TODO("Multiple items with same primary key")
 	}
 
 	// Check preconditions
@@ -197,6 +210,7 @@ func (d *DynamoDB) UpdateItem(input UpdateItemInput) (*UpdateItemOutput, *awserr
 	}
 
 	// Perform update
+	// TODO: handle ReturnValues
 	for attribute, update := range input.AttributeUpdates {
 		switch update.Action {
 		case "PUT":
@@ -211,7 +225,10 @@ func (d *DynamoDB) UpdateItem(input UpdateItemInput) (*UpdateItemOutput, *awserr
 		}
 	}
 
-	t.ItemCount += itemCountIncrease
-	t.ItemsByPrimaryKey[key] = []APIItem{existingItem}
+	// If this was an insert, not an update, we need to commit it.
+	if !ok {
+		t.ItemByPrimaryKey[key] = existingItem
+	}
+
 	return &UpdateItemOutput{}, nil
 }

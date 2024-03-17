@@ -64,6 +64,19 @@ type APIAttributeValue struct {
 	SS   []string                     // string set
 }
 
+type GetItemInput struct {
+	AttributesToGet          []string
+	ConsistentRead           bool
+	ExpressionAttributeNames map[string]string
+	Key                      map[string]APIAttributeValue
+	ProjectionExpression     string
+	TableName                string
+}
+
+type GetItemOutput struct {
+	Item APIItem
+}
+
 type PutItemInput struct {
 	Expected map[string]struct {
 		AttributeValueList []APIAttributeValue
@@ -79,6 +92,16 @@ type APIItem map[string]APIAttributeValue
 
 type PutItemOutput struct{}
 
+type UpdateItemReturnValues string
+
+const (
+	UpdateItems_NONE        = UpdateItemReturnValues("NONE")
+	UpdateItems_ALL_OLD     = UpdateItemReturnValues("ALL_OLD")
+	UpdateItems_UPDATED_OLD = UpdateItemReturnValues("UPDATED_OLD")
+	UpdateItems_ALL_NEW     = UpdateItemReturnValues("ALL_NEW")
+	UpdateItems_UPDATED_NEW = UpdateItemReturnValues("UPDATED_NEW")
+)
+
 type UpdateItemInput struct {
 	AttributeUpdates map[string]struct {
 		Action string
@@ -90,8 +113,9 @@ type UpdateItemInput struct {
 		Exists             *bool // Support explicit false
 		Value              APIAttributeValue
 	}
-	Key       map[string]APIAttributeValue
-	TableName string
+	Key          map[string]APIAttributeValue
+	ReturnValues UpdateItemReturnValues
+	TableName    string
 }
 
 type UpdateItemOutput struct {

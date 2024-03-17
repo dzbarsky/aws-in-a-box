@@ -4,6 +4,7 @@ go_test(
     name = "itest_test",
     srcs = ["sqs_test.go"],
     deps = [
+        "//arn",
         "//server",
         "//services/sqs",
         "@com_github_aws_aws_sdk_go_v2//aws",

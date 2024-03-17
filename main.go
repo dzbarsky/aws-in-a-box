@@ -136,7 +136,10 @@ func main() {
 
 	if *enableDynamoDB {
 		logger := logger.With("service", "dynamodb")
-		d := dynamodb.New(logger, arnGenerator)
+		d := dynamodb.New(dynamodb.Options{
+			Logger:       logger,
+			ArnGenerator: arnGenerator,
+		})
 		d.RegisterHTTPHandlers(logger, methodRegistry)
 		logger.Info("Enabled DynamoDB (EXPERIMENTAL!!!)")
 	}

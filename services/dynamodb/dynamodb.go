@@ -39,14 +39,19 @@ type DynamoDB struct {
 	tablesByName map[string]*Table
 }
 
-func New(logger *slog.Logger, generator arn.Generator) *DynamoDB {
-	if logger == nil {
-		logger = slog.Default()
+type Options struct {
+	Logger       *slog.Logger
+	ArnGenerator arn.Generator
+}
+
+func New(options Options) *DynamoDB {
+	if options.Logger == nil {
+		options.Logger = slog.Default()
 	}
 
 	d := &DynamoDB{
-		logger:       logger,
-		arnGenerator: generator,
+		logger:       options.Logger,
+		arnGenerator: options.ArnGenerator,
 		tablesByName: make(map[string]*Table),
 	}
 	return d
@@ -139,9 +144,15 @@ func (d *DynamoDB) PutItem(input PutItemInput) (*PutItemOutput, *awserrors.Error
 	if key == "" {
 		return nil, awserrors.InvalidArgumentException("PrimaryKey must be provided (and string)")
 	}
+
+	output := &PutItemOutput{}
+	if input.ReturnValues == PutItems_ALL_OLD {
+		output.Attributes = t.ItemByPrimaryKey[key]
+	}
+
 	t.ItemByPrimaryKey[key] = input.Item
 
-	return &PutItemOutput{}, nil
+	return output, nil
 }
 
 // https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html

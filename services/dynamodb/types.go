@@ -77,6 +77,13 @@ type GetItemOutput struct {
 	Item APIItem
 }
 
+type PutItemReturnValues string
+
+const (
+	PutItems_NONE    = PutItemReturnValues("NONE")
+	PutItems_ALL_OLD = PutItemReturnValues("ALL_OLD")
+)
+
 type PutItemInput struct {
 	Expected map[string]struct {
 		AttributeValueList []APIAttributeValue
@@ -84,13 +91,16 @@ type PutItemInput struct {
 		Exists             bool
 		Value              APIAttributeValue
 	}
-	Item      APIItem
-	TableName string
+	Item         APIItem
+	TableName    string
+	ReturnValues PutItemReturnValues
 }
 
 type APIItem map[string]APIAttributeValue
 
-type PutItemOutput struct{}
+type PutItemOutput struct {
+	Attributes APIItem
+}
 
 type UpdateItemReturnValues string
 

@@ -42,8 +42,9 @@ type Object struct {
 }
 
 type Bucket struct {
-	objects map[string]*Object
-	TagSet  TagSet
+	objects   map[string]*Object
+	createdAt time.Time
+	TagSet    TagSet
 }
 
 type UploadStatus int
@@ -127,7 +128,8 @@ func (s *S3) CreateBucket(input CreateBucketInput) (*CreateBucketOutput, *awserr
 	}
 
 	s.buckets[input.Bucket] = &Bucket{
-		objects: make(map[string]*Object),
+		createdAt: time.Now(),
+		objects:   make(map[string]*Object),
 	}
 
 	return &CreateBucketOutput{
@@ -146,6 +148,22 @@ func (s *S3) HeadBucket(input HeadBucketInput) (*HeadBucketOutput, *awserrors.Er
 	}
 
 	return &HeadBucketOutput{}, nil
+}
+
+// https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBuckets.html
+func (s *S3) ListBuckets(input ListBucketsInput) (*ListBucketsOutput, *awserrors.Error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	resp := &ListBucketsOutput{}
+	for name, b := range s.buckets {
+		resp.Buckets.Buckets = append(resp.Buckets.Buckets, ListBuckets_Bucket{
+			Name:         name,
+			CreationDate: b.createdAt.Format("2006-01-02T15:04:05+07:00"),
+		})
+	}
+
+	return resp, nil
 }
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucket.html

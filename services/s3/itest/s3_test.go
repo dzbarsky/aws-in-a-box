@@ -606,3 +606,22 @@ func TestListObjectsV2(t *testing.T) {
 	}
 
 }
+
+func TestListBuckets(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	listResp, err := client.ListBuckets(ctx, &s3.ListBucketsInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(listResp.Buckets) != 1 {
+		t.Fatal("Unexpected buckets", *listResp.Buckets[0].Name)
+	}
+
+	if *listResp.Buckets[0].Name != bucket {
+		t.Fatal("Wrong bucket name")
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -49,6 +50,8 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 				return true
 			}
 			switch r.Method {
+			case http.MethodGet:
+				handle(w, r, logger.With("method", "ListBuckets"), s3.ListBuckets)
 			case http.MethodPut:
 				handle(w, r, logger.With("method", "CreateBucket"), s3.CreateBucket)
 			case http.MethodDelete:
@@ -257,10 +260,17 @@ func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
 				panic(err)
 			}
 		} else if _, ok := ty.FieldByName("XMLName"); ok {
+			// serializeXMLToStdout(output)
 			err := xml.NewEncoder(w).Encode(output)
 			if err != nil {
 				panic(err)
 			}
 		}
 	}
+}
+
+func serializeXMLToStdout(output any) {
+	enc := xml.NewEncoder(os.Stdout)
+	enc.Indent("", "    ")
+	enc.Encode(output)
 }

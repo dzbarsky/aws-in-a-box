@@ -29,6 +29,21 @@ type HeadBucketInput struct {
 
 type HeadBucketOutput struct{}
 
+type ListBucketsInput struct{}
+
+type ListBucketsOutput struct {
+	XMLName xml.Name `xml:"ListAllMyBucketsResult"`
+	Buckets struct {
+		Buckets []ListBuckets_Bucket
+	}
+}
+
+type ListBuckets_Bucket struct {
+	XMLName      xml.Name `xml:"Bucket"`
+	CreationDate string
+	Name         string
+}
+
 type GetBucketTaggingInput struct {
 	Bucket string `s3:"bucket"`
 }

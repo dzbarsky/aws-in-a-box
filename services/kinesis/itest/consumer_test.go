@@ -38,8 +38,8 @@ func makeClientServerPair() (*kinesis.Client, *http.Server) {
 	go srv.Serve(listener)
 
 	client := kinesis.New(kinesis.Options{
-		EndpointResolver: kinesis.EndpointResolverFromURL("http://" + listener.Addr().String()),
-		Retryer:          aws.NopRetryer{},
+		BaseEndpoint: aws.String("http://" + listener.Addr().String()),
+		Retryer:      aws.NopRetryer{},
 	})
 
 	return client, srv

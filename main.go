@@ -149,8 +149,11 @@ func main() {
 			Logger:       logger,
 			ArnGenerator: arnGenerator,
 		})
-		logger.Info("Enabled SQS")
+		// Register JSON handler
+		s.RegisterHTTPHandlers(logger, methodRegistry)
+		// Register form data handler
 		handlerChain = append(handlerChain, sqs.NewHandler(logger, s))
+		logger.Info("Enabled SQS")
 	}
 
 	if *enableS3 {

@@ -37,7 +37,8 @@ func makeClientServerPair() (*s3.Client, *http.Server) {
 	go srv.Serve(listener)
 
 	client := s3.New(s3.Options{
-		EndpointResolver: s3.EndpointResolverFromURL("http://" + listener.Addr().String()),
+		Region:       "us-east-1",
+		BaseEndpoint: aws.String("http://" + listener.Addr().String()),
 		// Disable the subdomain addressing since it won't work (test-bucket.127.0.0.1)
 		UsePathStyle: true,
 		Retryer:      aws.NopRetryer{},
@@ -75,7 +76,7 @@ func TestMultipartUpload(t *testing.T) {
 	var parts []types.CompletedPart
 	for i, s := range []string{"hello", " world"} {
 		output, err := client.UploadPart(ctx, &s3.UploadPartInput{
-			PartNumber: int32(i),
+			PartNumber: aws.Int32(int32(i)),
 			Bucket:     &bucket,
 			Key:        &key,
 			UploadId:   id,
@@ -92,7 +93,7 @@ func TestMultipartUpload(t *testing.T) {
 		}
 		parts = append(parts, types.CompletedPart{
 			ETag:       output.ETag,
-			PartNumber: int32(i),
+			PartNumber: aws.Int32(int32(i)),
 		})
 	}
 
@@ -139,38 +140,38 @@ func TestMultipartUpload(t *testing.T) {
 		Bucket:   &bucket,
 		Key:      &key,
 		UploadId: id,
-		MaxParts: 1,
+		MaxParts: aws.Int32(1),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(partsOutput.Parts, []types.Part{{
 		ETag:       parts[0].ETag,
-		Size:       5,
-		PartNumber: 0,
+		Size:       aws.Int64(5),
+		PartNumber: aws.Int32(0),
 	}}) {
 		t.Fatal("wrong parts", partsOutput.Parts)
 	}
-	if !partsOutput.IsTruncated {
+	if !*partsOutput.IsTruncated {
 		t.Fatal("not truncated")
 	}
 	partsOutput, err = client.ListParts(ctx, &s3.ListPartsInput{
 		Bucket:           &bucket,
 		Key:              &key,
 		UploadId:         id,
-		MaxParts:         1,
+		MaxParts:         aws.Int32(1),
 		PartNumberMarker: partsOutput.NextPartNumberMarker,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if partsOutput.IsTruncated {
+	if *partsOutput.IsTruncated {
 		t.Fatal("truncated")
 	}
 	if !reflect.DeepEqual(partsOutput.Parts, []types.Part{{
 		ETag:       parts[1].ETag,
-		Size:       6,
-		PartNumber: 1,
+		Size:       aws.Int64(6),
+		PartNumber: aws.Int32(1),
 	}}) {
 		t.Fatal("wrong parts", partsOutput.Parts)
 	}
@@ -219,7 +220,7 @@ func TestRangeQuery(t *testing.T) {
 	var parts []types.CompletedPart
 	for i, s := range []string{"hello", " world ", "hi", " things are fun"} {
 		output, err := client.UploadPart(ctx, &s3.UploadPartInput{
-			PartNumber: int32(i),
+			PartNumber: aws.Int32(int32(i)),
 			Bucket:     &bucket,
 			Key:        &key,
 			UploadId:   id,
@@ -230,7 +231,7 @@ func TestRangeQuery(t *testing.T) {
 		}
 		parts = append(parts, types.CompletedPart{
 			ETag:       output.ETag,
-			PartNumber: int32(i),
+			PartNumber: aws.Int32(int32(i)),
 		})
 	}
 
@@ -476,7 +477,7 @@ func TestDeleteObjects(t *testing.T) {
 			Objects: []types.ObjectIdentifier{
 				{Key: aws.String("key1")},
 			},
-			Quiet: true,
+			Quiet: aws.Bool(true),
 		},
 	})
 	if err != nil {
@@ -564,7 +565,7 @@ func TestListObjectsV2(t *testing.T) {
 	startAfter := "14"
 	resp, err = client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket:     &bucket,
-		MaxKeys:    2,
+		MaxKeys:    aws.Int32(2),
 		StartAfter: &startAfter,
 	})
 	if err != nil {
@@ -590,9 +591,12 @@ func TestListObjectsV2(t *testing.T) {
 	resp, err = client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket: &bucket,
 		// We expect 11 keys, include an extra to verify behavior
-		MaxKeys: 12,
+		MaxKeys: aws.Int32(12),
 		Prefix:  &prefix,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(resp.Contents) != 11 {
 		t.Fatal("not 11 contents", resp.Contents)
 	}

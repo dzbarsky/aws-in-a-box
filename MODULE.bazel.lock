@@ -1,6 +1,6 @@
 {
   "lockFileVersion": 6,
-  "moduleFileHash": "dd4b14ff68fb18aca6d4b98b30b819ddef36f1dfc104224b7139879858e394b7",
+  "moduleFileHash": "af318037e6f7bb0b022c49c7c5f817a621e96126b2c3f40eea2219e7ec5fc9a6",
   "flags": {
     "cmdRegistries": [
       "https://bcr.bazel.build/"
@@ -35,6 +35,7 @@
           },
           "imports": {
             "com_github_aws_aws_sdk_go_v2": "com_github_aws_aws_sdk_go_v2",
+            "com_github_aws_aws_sdk_go_v2_service_dynamodb": "com_github_aws_aws_sdk_go_v2_service_dynamodb",
             "com_github_aws_aws_sdk_go_v2_service_kinesis": "com_github_aws_aws_sdk_go_v2_service_kinesis",
             "com_github_aws_aws_sdk_go_v2_service_kms": "com_github_aws_aws_sdk_go_v2_service_kms",
             "com_github_aws_aws_sdk_go_v2_service_s3": "com_github_aws_aws_sdk_go_v2_service_s3",
@@ -1465,11 +1466,36 @@
         "recordedRepoMappingEntries": []
       }
     },
+    "@@buildozer~//:buildozer_binary.bzl%buildozer_binary": {
+      "general": {
+        "bzlTransitiveDigest": "EleDU/FQ1+e/RgkW3aIDmdaxZEthvoWQhsqFTxiSgMI=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "buildozer_binary": {
+            "bzlFile": "@@buildozer~//private:buildozer_binary.bzl",
+            "ruleClassName": "_buildozer_binary_repo",
+            "attributes": {
+              "sha256": {
+                "darwin-amd64": "d29e347ecd6b5673d72cb1a8de05bf1b06178dd229ff5eb67fad5100c840cc8e",
+                "darwin-arm64": "9b9e71bdbec5e7223871e913b65d12f6d8fa026684daf991f00e52ed36a6978d",
+                "linux-amd64": "8dfd6345da4e9042daa738d7fdf34f699c5dfce4632f7207956fceedd8494119",
+                "linux-arm64": "6559558fded658c8fa7432a9d011f7c4dcbac6b738feae73d2d5c352e5f605fa",
+                "windows-amd64": "e7f05bf847f7c3689dd28926460ce6e1097ae97380ac8e6ae7147b7b706ba19b"
+              },
+              "version": "6.4.0"
+            }
+          }
+        },
+        "recordedRepoMappingEntries": []
+      }
+    },
     "@@gazelle~//:extensions.bzl%go_deps": {
       "general": {
         "bzlTransitiveDigest": "LU6SX6N3JGbML1A3SCpN/Pm4Pck4gYEMf63QPuiuSq8=",
         "recordedFileInputs": {
-          "@@//go.mod": "6e96578100f1fc8164bc9b14bd4bcf873bd1102128a654d3b1c7128fe71083cc",
+          "@@//go.mod": "f7e3b6cab0d43a1da8732b8bba9c3889a0cf3f9905c59521b72df9ba97fe8347",
           "@@rules_go~//go.mod": "15454724af1504c4ce1782c2a7f423d596a1d8490125eb7c5bd9c95fea1991f0",
           "@@gazelle~//go.sum": "7469786f3930030c430969cedae951e6947cb40f4a563dac94a350659c0fedc4",
           "@@//go.sum": "151a39d4c0b6cbddf178ecbe5733e0e012672349aec82688c7f144572debf5dc",
@@ -2059,6 +2085,7 @@
             "attributes": {
               "importpaths": {
                 "com_github_aws_aws_sdk_go_v2": "github.com/aws/aws-sdk-go-v2",
+                "com_github_aws_aws_sdk_go_v2_service_dynamodb": "github.com/aws/aws-sdk-go-v2/service/dynamodb",
                 "com_github_aws_aws_sdk_go_v2_service_kinesis": "github.com/aws/aws-sdk-go-v2/service/kinesis",
                 "com_github_aws_aws_sdk_go_v2_service_kms": "github.com/aws/aws-sdk-go-v2/service/kms",
                 "com_github_aws_aws_sdk_go_v2_service_s3": "github.com/aws/aws-sdk-go-v2/service/s3",
@@ -2073,7 +2100,6 @@
                 "com_github_aws_aws_sdk_go_v2_internal_configsources": "github.com/aws/aws-sdk-go-v2/internal/configsources",
                 "com_github_aws_aws_sdk_go_v2_internal_endpoints_v2": "github.com/aws/aws-sdk-go-v2/internal/endpoints/v2",
                 "com_github_aws_aws_sdk_go_v2_internal_v4a": "github.com/aws/aws-sdk-go-v2/internal/v4a",
-                "com_github_aws_aws_sdk_go_v2_service_dynamodb": "github.com/aws/aws-sdk-go-v2/service/dynamodb",
                 "com_github_aws_aws_sdk_go_v2_service_internal_accept_encoding": "github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding",
                 "com_github_aws_aws_sdk_go_v2_service_internal_checksum": "github.com/aws/aws-sdk-go-v2/service/internal/checksum",
                 "com_github_aws_aws_sdk_go_v2_service_internal_endpoint_discovery": "github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery",
@@ -2158,6 +2184,7 @@
         "moduleExtensionMetadata": {
           "explicitRootModuleDirectDeps": [
             "com_github_aws_aws_sdk_go_v2",
+            "com_github_aws_aws_sdk_go_v2_service_dynamodb",
             "com_github_aws_aws_sdk_go_v2_service_kinesis",
             "com_github_aws_aws_sdk_go_v2_service_kms",
             "com_github_aws_aws_sdk_go_v2_service_s3",

@@ -19,24 +19,25 @@ import (
 	"aws-in-a-box/services/sqs"
 )
 
+var BazelSuffix = ""
+
 func versionString() string {
-	buildinfo, ok := debug.ReadBuildInfo()
-	if !ok {
-		return ""
-	}
-	revision := "unknown"
-	dirty := false
-	for _, s := range buildinfo.Settings {
-		if s.Key == "vcs.modified" {
-			dirty = s.Value == "true"
-		} else if s.Key == "vcs.revision" {
-			revision = s.Value
+	version := Version + BazelSuffix
+
+	// We only have ReadBuildInfo in non-bazel builds.
+	if version != Version {
+		buildinfo, ok := debug.ReadBuildInfo()
+		if ok {
+			for _, s := range buildinfo.Settings {
+				if s.Key == "vcs.modified" {
+					version += " (dirty)"
+					break
+				}
+			}
 		}
 	}
-	if dirty {
-		revision += "(dirty)"
-	}
-	return revision
+
+	return version
 }
 
 func main() {
@@ -84,14 +85,7 @@ func main() {
 	textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: level,
 	})
-	logger := slog.New(textHandler)
-
-	version := versionString()
-	if version == "" {
-		logger.Warn("Could not read build info")
-	} else {
-		logger = logger.With("version", versionString())
-	}
+	logger := slog.New(textHandler).With("version", versionString())
 
 	methodRegistry := make(http.Registry)
 

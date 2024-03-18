@@ -5,7 +5,10 @@ gazelle(name = "gazelle")
 
 go_library(
     name = "aws-in-a-box_lib",
-    srcs = ["main.go"],
+    srcs = [
+        "main.go",
+        "version.go",
+    ],
     importpath = "aws-in-a-box",
     visibility = ["//visibility:private"],
     deps = [
@@ -18,6 +21,9 @@ go_library(
         "//services/s3",
         "//services/sqs",
     ],
+    x_defs = {
+        "aws-in-a-box.BazelSuffix": " (Bazel)"
+    },
 )
 
 go_binary(

@@ -227,6 +227,7 @@ func unmarshal(r *http.Request, target any) error {
 
 func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
 	var body io.Reader
+	var httpStatus int
 	if awserr != nil {
 		w.WriteHeader(awserr.Code)
 		w.Write([]byte(awserr.Body.Message))
@@ -237,6 +238,8 @@ func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
 			tag := ty.Field(i).Tag.Get("s3")
 			if tag == "body" {
 				reflect.ValueOf(&body).Elem().Set(v.Field(i))
+			} else if tag == "http-status" {
+				httpStatus = int(v.Field(i).Int())
 			} else if h, ok := strings.CutPrefix(tag, "header:"); ok {
 				field := ty.Field(i)
 				switch field.Type.Kind() {
@@ -250,6 +253,8 @@ func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
 
 		if output == response204 {
 			w.WriteHeader(http.StatusNoContent)
+		} else if httpStatus != 0 {
+			w.WriteHeader(httpStatus)
 		} else {
 			w.WriteHeader(http.StatusOK)
 		}

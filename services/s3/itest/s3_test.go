@@ -196,10 +196,11 @@ func TestMultipartUpload(t *testing.T) {
 }
 
 type RangeTestCase struct {
-	Name  string
-	Range string
-	Body  string
-	Error bool
+	Name         string
+	Range        string
+	Body         string
+	Error        bool
+	ContentRange string
 }
 
 func TestRangeQuery(t *testing.T) {
@@ -249,9 +250,9 @@ func TestRangeQuery(t *testing.T) {
 
 	testCases := []RangeTestCase{
 		{Name: "entire range", Range: "bytes=0-28", Body: "hello world hi things are fun"},
-		{Name: "Skip entire first part and half of second part", Range: "bytes=8-13", Body: "rld hi"},
-		{Name: "Prefix", Range: "bytes=0-8", Body: "hello wor"},
-		{Name: "Suffix", Range: "bytes=-4", Body: " fun"},
+		{Name: "Skip entire first part and half of second part", Range: "bytes=8-13", Body: "rld hi", ContentRange: "bytes 8-13/29"},
+		{Name: "Prefix", Range: "bytes=0-8", Body: "hello wor", ContentRange: "bytes 0-8/29"},
+		{Name: "Suffix", Range: "bytes=-4", Body: " fun", ContentRange: "bytes 25-28/29"},
 		{Name: "Ending beyond the end of the object", Range: "bytes=0-100", Body: "hello world hi things are fun"},
 		{Name: "Starting beyond the end of the object", Range: "bytes=100-", Body: "", Error: true},
 	}
@@ -269,6 +270,15 @@ func TestRangeQuery(t *testing.T) {
 					t.Fatal("expected error")
 				}
 				return
+			}
+
+			if testCase.ContentRange != "" {
+				if output.ContentRange == nil {
+					t.Fatalf("Got nil content range when expected %s", testCase.ContentRange)
+				}
+				if testCase.ContentRange != *output.ContentRange {
+					t.Fatalf("Got %s range when expected %s", *output.ContentRange, testCase.ContentRange)
+				}
 			}
 
 			if err != nil {

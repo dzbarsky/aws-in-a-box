@@ -109,7 +109,9 @@ type GetObjectInput struct {
 }
 
 type GetObjectOutput struct {
+	HttpStatus           int    `s3:"http-status"`
 	ContentLength        int64  `s3:"header:content-length"`
+	ContentRange         string `s3:"header:content-range"`
 	ETag                 string `s3:"header:etag"`
 	ContentType          string `s3:"header:content-type"`
 	ServerSideEncryption string `s3:"header:x-amz-server-side-encryption"`

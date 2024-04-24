@@ -226,50 +226,50 @@ func unmarshal(r *http.Request, target any) error {
 }
 
 func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
-	var body io.Reader
-	var httpStatus int
 	if awserr != nil {
 		w.WriteHeader(awserr.Code)
 		w.Write([]byte(awserr.Body.Message))
-	} else {
-		v := reflect.ValueOf(output).Elem()
-		ty := v.Type()
-		for i := 0; i < ty.NumField(); i++ {
-			tag := ty.Field(i).Tag.Get("s3")
-			if tag == "body" {
-				reflect.ValueOf(&body).Elem().Set(v.Field(i))
-			} else if tag == "http-status" {
-				httpStatus = int(v.Field(i).Int())
-			} else if h, ok := strings.CutPrefix(tag, "header:"); ok {
-				field := ty.Field(i)
-				switch field.Type.Kind() {
-				case reflect.Int, reflect.Int64:
-					w.Header().Set(h, strconv.Itoa(int(v.Field(i).Int())))
-				default:
-					w.Header().Set(h, v.Field(i).String())
-				}
+		return
+	}
+
+	var body io.Reader
+	httpStatus := http.StatusOK
+
+	v := reflect.ValueOf(output).Elem()
+	ty := v.Type()
+	for i := 0; i < ty.NumField(); i++ {
+		tag := ty.Field(i).Tag.Get("s3")
+		if tag == "body" {
+			reflect.ValueOf(&body).Elem().Set(v.Field(i))
+		} else if tag == "http-status" {
+			httpStatus = int(v.Field(i).Int())
+		} else if h, ok := strings.CutPrefix(tag, "header:"); ok {
+			field := ty.Field(i)
+			switch field.Type.Kind() {
+			case reflect.Int, reflect.Int64:
+				w.Header().Set(h, strconv.Itoa(int(v.Field(i).Int())))
+			default:
+				w.Header().Set(h, v.Field(i).String())
 			}
 		}
+	}
 
-		if output == response204 {
-			w.WriteHeader(http.StatusNoContent)
-		} else if httpStatus != 0 {
-			w.WriteHeader(httpStatus)
-		} else {
-			w.WriteHeader(http.StatusOK)
+	if output == response204 {
+		httpStatus = http.StatusNoContent
+	}
+
+	w.WriteHeader(httpStatus)
+
+	if body != nil {
+		_, err := io.Copy(w, body)
+		if err != nil {
+			panic(err)
 		}
-
-		if body != nil {
-			_, err := io.Copy(w, body)
-			if err != nil {
-				panic(err)
-			}
-		} else if _, ok := ty.FieldByName("XMLName"); ok {
-			// serializeXMLToStdout(output)
-			err := xml.NewEncoder(w).Encode(output)
-			if err != nil {
-				panic(err)
-			}
+	} else if _, ok := ty.FieldByName("XMLName"); ok {
+		// serializeXMLToStdout(output)
+		err := xml.NewEncoder(w).Encode(output)
+		if err != nil {
+			panic(err)
 		}
 	}
 }

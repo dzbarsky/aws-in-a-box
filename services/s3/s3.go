@@ -367,6 +367,7 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		SSEKMSKeyId:          object.SSEKMSKeyId,
 		// Bafflingly, This format is expected here.
 		LastModified: time.Now().UTC().Format(timeFormat),
+		HttpStatus:   http.StatusOK,
 	}
 	if includeBody {
 		var ranges []ByteRange
@@ -406,8 +407,6 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 				// If there is more than one range specified, just use * to indicate unknown.
 				output.ContentRange = fmt.Sprintf("bytes */%d", object.ContentLength)
 			}
-		} else {
-			output.HttpStatus = http.StatusOK
 		}
 	}
 	return output, nil

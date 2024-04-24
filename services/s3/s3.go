@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -396,6 +397,18 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		}
 		output.Body = io.MultiReader(readers...)
 		output.ContentLength = totalLength
+		if totalLength < object.ContentLength {
+			output.HttpStatus = http.StatusPartialContent
+			if len(ranges) == 1 {
+				// Content-Range is inclusive on the end, where ranges[0].endByte is exclusive. We subtract one to convert.
+				output.ContentRange = fmt.Sprintf("bytes %d-%d/%d", ranges[0].startByte, ranges[0].endByte-1, object.ContentLength)
+			} else {
+				// If there is more than one range specified, just use * to indicate unknown.
+				output.ContentRange = fmt.Sprintf("bytes */%d", object.ContentLength)
+			}
+		} else {
+			output.HttpStatus = http.StatusOK
+		}
 	}
 	return output, nil
 }

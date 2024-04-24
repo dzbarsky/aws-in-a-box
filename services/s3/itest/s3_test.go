@@ -639,3 +639,31 @@ func TestListBuckets(t *testing.T) {
 		t.Fatal("Wrong bucket name")
 	}
 }
+
+func TestHead(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	key := "test-key"
+	_, err := client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+		Body:   strings.NewReader("hello"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	headResponse, err := client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Perform a very basic check to verify that we got a response.
+	if int(*headResponse.ContentLength) != len("hello") {
+		t.Fatal("unexpected content length")
+	}
+}

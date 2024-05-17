@@ -398,7 +398,7 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		}
 		output.Body = io.MultiReader(readers...)
 		output.ContentLength = totalLength
-		if totalLength < object.ContentLength {
+		if len(ranges) > 0 {
 			output.HttpStatus = http.StatusPartialContent
 			if len(ranges) == 1 {
 				// Content-Range is inclusive on the end, where ranges[0].endByte is exclusive. We subtract one to convert.
@@ -475,23 +475,23 @@ func (s *S3) CopyObject(input CopyObjectInput) (*CopyObjectOutput, *awserrors.Er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// "/bucket/path/to/key"
+	// "bucket/path/to/key"
 	copySource, err := url.PathUnescape(input.CopySource)
 	if err != nil {
 		return nil, awserrors.XXX_TODO(err.Error())
 	}
-	parts := strings.SplitN(copySource, "/", 3)
-	sourceBucket := parts[1]
-	sourceKey := parts[2]
+	parts := strings.SplitN(copySource, "/", 2)
+	sourceBucket := parts[0]
+	sourceKey := parts[1]
 
 	b, ok := s.buckets[sourceBucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, awserrors.XXX_TODO("no bucket: " + sourceBucket)
 	}
 
 	object, ok := b.objects[sourceKey]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no source item")
+		return nil, awserrors.XXX_TODO("no source item: " + sourceKey)
 	}
 
 	if input.MetadataDirective == "REPLACE" {

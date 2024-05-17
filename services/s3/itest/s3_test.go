@@ -249,7 +249,7 @@ func TestRangeQuery(t *testing.T) {
 	}
 
 	testCases := []RangeTestCase{
-		{Name: "entire range", Range: "bytes=0-28", Body: "hello world hi things are fun"},
+		{Name: "entire range", Range: "bytes=0-28", Body: "hello world hi things are fun", ContentRange: "bytes 0-28/29"},
 		{Name: "Skip entire first part and half of second part", Range: "bytes=8-13", Body: "rld hi", ContentRange: "bytes 8-13/29"},
 		{Name: "Prefix", Range: "bytes=0-8", Body: "hello wor", ContentRange: "bytes 0-8/29"},
 		{Name: "Suffix", Range: "bytes=-4", Body: " fun", ContentRange: "bytes 25-28/29"},

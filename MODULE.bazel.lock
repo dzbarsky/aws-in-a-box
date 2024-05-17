@@ -1493,7 +1493,7 @@
     },
     "@@gazelle~//:extensions.bzl%go_deps": {
       "general": {
-        "bzlTransitiveDigest": "LU6SX6N3JGbML1A3SCpN/Pm4Pck4gYEMf63QPuiuSq8=",
+        "bzlTransitiveDigest": "pNhMjG1EM5sSyyYAyKn5IjgRrvuFY8Sg/Oez1imX/hc=",
         "recordedFileInputs": {
           "@@//go.mod": "f7e3b6cab0d43a1da8732b8bba9c3889a0cf3f9905c59521b72df9ba97fe8347",
           "@@rules_go~//go.mod": "15454724af1504c4ce1782c2a7f423d596a1d8490125eb7c5bd9c95fea1991f0",
@@ -2260,7 +2260,7 @@
     },
     "@@rules_go~//go:extensions.bzl%go_sdk": {
       "os:osx,arch:aarch64": {
-        "bzlTransitiveDigest": "fPPVH253PBJkIMD0kIJyCfyiZd4YjAur7UAXZVb1u2g=",
+        "bzlTransitiveDigest": "M8usE6Nbxsu7VKLDgLIKlgMg9DfiHfsizjGkZDNAw4w=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2451,7 +2451,7 @@
     },
     "@@rules_java~//java:extensions.bzl%toolchains": {
       "general": {
-        "bzlTransitiveDigest": "tJHbmWnq7m+9eUBnUdv7jZziQ26FmcGL9C5/hU3Q9UQ=",
+        "bzlTransitiveDigest": "0N5b5J9fUzo0sgvH4F3kIEaeXunz4Wy2/UtSFV/eXUY=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},

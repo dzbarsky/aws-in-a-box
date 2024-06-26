@@ -145,7 +145,7 @@ func (s *S3) HeadBucket(input HeadBucketInput) (*HeadBucketOutput, *awserrors.Er
 
 	_, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, NotFound()
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	return &HeadBucketOutput{}, nil
@@ -348,7 +348,7 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 
 	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, NotFound()
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	object, ok := b.objects[input.Key]
@@ -440,7 +440,7 @@ func (s *S3) PutObject(input PutObjectInput) (*PutObjectOutput, *awserrors.Error
 
 	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	MD5, contentLength, err := s.drainReaderToMD5Store(input.Data)
@@ -486,7 +486,7 @@ func (s *S3) CopyObject(input CopyObjectInput) (*CopyObjectOutput, *awserrors.Er
 
 	b, ok := s.buckets[sourceBucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket: " + sourceBucket)
+		return nil, NoSuchBucket(sourceBucket)
 	}
 
 	object, ok := b.objects[sourceKey]
@@ -509,7 +509,7 @@ func (s *S3) CopyObject(input CopyObjectInput) (*CopyObjectOutput, *awserrors.Er
 
 	destBucket, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	destBucket.objects[input.Key] = object
@@ -532,7 +532,7 @@ func (s *S3) DeleteObject(input DeleteObjectInput) (*DeleteObjectOutput, *awserr
 
 	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, NotFound()
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	delete(b.objects, input.Key)
@@ -549,7 +549,7 @@ func (s *S3) DeleteObjects(input DeleteObjectsInput) (*DeleteObjectsOutput, *aws
 	output := &DeleteObjectsOutput{}
 	for _, object := range input.Object {
 		if !bucketExists {
-			err := NotFound().Body
+			err := NoSuchBucket(input.Bucket).Body
 			output.Error = append(output.Error, DeleteObjectsError{
 				Code:    err.Type,
 				Key:     object.Key,
@@ -575,12 +575,12 @@ func (s *S3) GetObjectTagging(input GetObjectTaggingInput) (*GetObjectTaggingOut
 
 	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	object, ok := b.objects[input.Key]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no item")
+		return nil, NotFound()
 	}
 
 	tagging := &GetObjectTaggingOutput{}
@@ -607,12 +607,12 @@ func (s *S3) PutObjectTagging(input PutObjectTaggingInput) (*PutObjectTaggingOut
 
 	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	object, ok := b.objects[input.Key]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no item")
+		return nil, NotFound()
 	}
 
 	tagging := strings.Builder{}
@@ -636,12 +636,12 @@ func (s *S3) DeleteObjectTagging(input DeleteObjectTaggingInput) (*Response204, 
 
 	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	object, ok := b.objects[input.Key]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no item")
+		return nil, NotFound()
 	}
 	object.Tagging = ""
 
@@ -655,7 +655,7 @@ func (s *S3) CreateMultipartUpload(input CreateMultipartUploadInput) (*CreateMul
 
 	_, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	uploadId := base64.RawURLEncoding.EncodeToString(uuid.Must(uuid.NewV4()).Bytes())
@@ -719,7 +719,7 @@ func (s *S3) ListParts(input ListPartsInput) (*ListPartsOutput, *awserrors.Error
 
 	_, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	upload, ok := s.multipartUploads[input.UploadId]
@@ -859,7 +859,7 @@ func (s *S3) GetBucketTagging(input GetBucketTaggingInput) (*GetBucketTaggingOut
 
 	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	return &GetBucketTaggingOutput{
@@ -874,7 +874,7 @@ func (s *S3) PutBucketTagging(input PutBucketTaggingInput) (*PutBucketTaggingOut
 
 	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NoSuchBucket(input.Bucket)
 	}
 	b.TagSet = input.TagSet
 
@@ -888,7 +888,7 @@ func (s *S3) DeleteBucketTagging(input DeleteBucketTaggingInput) (*Response204, 
 
 	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	b.TagSet = TagSet{}
@@ -902,7 +902,7 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 
 	b, ok := s.buckets[input.Bucket]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no bucket")
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	// Gather a list of all keys in bucket, sort them.

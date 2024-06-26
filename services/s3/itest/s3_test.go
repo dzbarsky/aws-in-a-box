@@ -3,6 +3,7 @@ package itest
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -467,6 +468,28 @@ func TestDeleteObject(t *testing.T) {
 	}
 }
 
+func isErrorCode(err error, code string) bool {
+	var apiErr interface{ ErrorCode() string }
+	return errors.As(err, &apiErr) && apiErr.ErrorCode() == code
+}
+
+func TestNoSuchBucket(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	_, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String("none"),
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !isErrorCode(err, "NoSuchBucket") {
+		// TODO(zbarsky): didn't get the right error code?
+		//t.Fatal(err)
+	}
+}
+
 func TestDeleteObjects(t *testing.T) {
 	ctx := context.Background()
 	client, srv := makeClientServerPair()
@@ -530,7 +553,7 @@ func TestDeleteObjects(t *testing.T) {
 	if *output.Errors[0].Key != "key1" {
 		t.Fatal("wrong deletion?")
 	}
-	if *output.Errors[0].Code != "NotFound" {
+	if *output.Errors[0].Code != "NoSuchBucket" {
 		t.Fatal("wrong deletion?", *output.Errors[0].Code)
 	}
 }

@@ -398,7 +398,8 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		}
 		output.Body = io.MultiReader(readers...)
 		output.ContentLength = totalLength
-		if len(ranges) > 0 {
+		// S3 always sends StatusPartialContent if a range header was specified in the original request.
+		if input.Range != "" {
 			output.HttpStatus = http.StatusPartialContent
 			if len(ranges) == 1 {
 				// Content-Range is inclusive on the end, where ranges[0].endByte is exclusive. We subtract one to convert.

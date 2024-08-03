@@ -641,7 +641,6 @@ func TestListObjectsV2(t *testing.T) {
 	if resp.ContinuationToken != nil {
 		t.Fatal("expected nil continuation token", resp)
 	}
-
 }
 
 func TestListBuckets(t *testing.T) {
@@ -660,6 +659,110 @@ func TestListBuckets(t *testing.T) {
 
 	if *listResp.Buckets[0].Name != bucket {
 		t.Fatal("Wrong bucket name")
+	}
+}
+
+func TestListObjectsV2_CommonPrefixes(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	_, err := client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    aws.String("top"),
+		Body:   strings.NewReader(""),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 5; i++ {
+		_, err := client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: &bucket,
+			Key:    aws.String("nested2/" + strconv.Itoa(i)),
+			Body:   strings.NewReader(""),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for i := 0; i < 5; i++ {
+		_, err := client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: &bucket,
+			Key:    aws.String("nested1/" + strconv.Itoa(i)),
+			Body:   strings.NewReader(""),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resp, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:    &bucket,
+		Delimiter: aws.String("/"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *resp.Delimiter != "/" {
+		t.Fatal("Should return delimiter")
+	}
+
+	if len(resp.Contents) != 1 {
+		t.Fatal("not 1 contents", resp.Contents)
+	}
+	if *resp.Contents[0].Key != "top" {
+		t.Fatal("incorrect contents", resp.Contents)
+	}
+
+	if len(resp.CommonPrefixes) != 2 {
+		t.Fatal("incorrect commonPrefixes", resp.CommonPrefixes)
+	}
+	if *resp.CommonPrefixes[0].Prefix != "nested1/" {
+		t.Fatal("incorrect commonPrefixes", *resp.CommonPrefixes[0].Prefix)
+	}
+	if *resp.CommonPrefixes[1].Prefix != "nested2/" {
+		t.Fatal("incorrect commonPrefixes", *resp.CommonPrefixes[1].Prefix)
+	}
+
+	resp, err = client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:    &bucket,
+		Delimiter: aws.String("/"),
+		Prefix:    aws.String("nes"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Contents) != 0 {
+		t.Fatal("should have no contents", resp.Contents)
+	}
+	if len(resp.CommonPrefixes) != 2 {
+		t.Fatal("incorrect commonPrefixes", resp.CommonPrefixes)
+	}
+	if *resp.CommonPrefixes[0].Prefix != "nested1/" {
+		t.Fatal("incorrect commonPrefixes", *resp.CommonPrefixes[0].Prefix)
+	}
+	if *resp.CommonPrefixes[1].Prefix != "nested2/" {
+		t.Fatal("incorrect commonPrefixes", *resp.CommonPrefixes[1].Prefix)
+	}
+
+	resp, err = client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:    &bucket,
+		Delimiter: aws.String("/"),
+		Prefix:    aws.String("nested1"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Contents) != 0 {
+		t.Fatal("should have no contents", resp.Contents)
+	}
+	if len(resp.CommonPrefixes) != 1 {
+		t.Fatal("incorrect commonPrefixes", resp.CommonPrefixes)
+	}
+	if *resp.CommonPrefixes[0].Prefix != "nested1/" {
+		t.Fatal("incorrect commonPrefixes", resp.CommonPrefixes[0])
 	}
 }
 

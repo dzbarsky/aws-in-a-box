@@ -306,8 +306,8 @@ type ListObjectsV2Input struct {
 	MaxKeys           *int    `s3:"query:max-keys"`
 	Prefix            *string `s3:"query:prefix"`
 	StartAfter        *string `s3:"query:start-after"`
+	Delimiter         *string `s3:"query:delimiter"`
 	// Not supported:
-	// Delimiter
 	// Encoding-Type
 	// Fetch-Owner
 }
@@ -332,6 +332,12 @@ type ListObjectsV2Output struct {
 	NextContinuationToken string
 	Prefix                *string
 	StartAfter            *string
+	Delimiter             *string
+	CommonPrefixes        []Prefix
+}
+
+type Prefix struct {
+	Prefix string
 }
 
 type InvalidRangeError struct {

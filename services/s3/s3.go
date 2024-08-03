@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	"golang.org/x/exp/maps"
 
 	"aws-in-a-box/atomicfile"
 	"aws-in-a-box/awserrors"
@@ -909,14 +910,15 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 	// Gather a list of all keys in bucket, sort them.
 	var keysSorted []string
 	for key := range b.objects {
+		if input.Prefix != nil && !strings.HasPrefix(key, *input.Prefix) {
+			continue
+		}
 		keysSorted = append(keysSorted, key)
 	}
 	sort.Strings(keysSorted)
 
-	var maxKeys int
-	if input.MaxKeys == nil {
-		maxKeys = 1000
-	} else {
+	maxKeys := 1000
+	if input.MaxKeys != nil {
 		maxKeys = *input.MaxKeys
 	}
 
@@ -925,6 +927,10 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 	continuationToken := ""
 	var keysToInclude []string
 	for _, key := range keysSorted {
+		if input.Delimiter != nil && strings.Contains(key, *input.Delimiter) {
+			continue
+		}
+
 		if len(keysToInclude) >= maxKeys {
 			isTruncated = true
 			continuationToken = key
@@ -933,12 +939,6 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 
 		if input.StartAfter != nil && key < *input.StartAfter {
 			continue
-		}
-
-		if input.Prefix != nil {
-			if !strings.HasPrefix(key, *input.Prefix) {
-				continue
-			}
 		}
 
 		if input.ContinuationToken != nil && key < *input.ContinuationToken {
@@ -969,7 +969,30 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 		NextContinuationToken: continuationToken,
 		Prefix:                input.Prefix,
 		StartAfter:            input.StartAfter,
+		// TODO(zbarsky): Do we just echo this? Docs seem unclear.
+		Delimiter: input.Delimiter,
 	}
+
+	if input.Delimiter != nil {
+		commonPrefixes := make(map[string]struct{})
+		for _, key := range keysSorted {
+			i := strings.Index(key, *input.Delimiter)
+			if i != -1 {
+				commonPrefixes[key[:i+len(*input.Delimiter)]] = struct{}{}
+			}
+		}
+
+		prefixesSorted := maps.Keys(commonPrefixes)
+		sort.Strings(prefixesSorted)
+		for _, p := range prefixesSorted {
+			response.CommonPrefixes = append(response.CommonPrefixes, Prefix{p})
+		}
+	}
+
+	// TODO(zbarsky): Method may be incomplete, here's what AWS docs say:
+	// When you query ListObjectsV2 with a delimiter during in-progress multipart uploads,
+	// the CommonPrefixes response parameter contains the prefixes that are associated with
+	// the in-progress multipart uploads.
 
 	return response, nil
 

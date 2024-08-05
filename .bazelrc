@@ -1,5 +1,5 @@
 common --enable_bzlmod
-common --experimental_worker_for_repo_fetching=off
+common --experimental_output_paths=strip
 
 common --bes_results_url=https://app.buildbuddy.io/invocation/
 common --bes_backend=grpcs://remote.buildbuddy.io

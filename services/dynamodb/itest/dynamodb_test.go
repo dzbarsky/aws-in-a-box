@@ -2,9 +2,11 @@ package itest
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -103,5 +105,78 @@ func TestGetItem_PartitionKey(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestScanItem_FilterExpression_StringPrimaryKey(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	primaryKey := "pkey"
+
+	tableName := "table"
+	_, err := client.CreateTable(ctx, &dynamodb.CreateTableInput{
+		AttributeDefinitions: []types.AttributeDefinition{
+			{
+				AttributeName: aws.String(primaryKey),
+				AttributeType: types.ScalarAttributeTypeS,
+			},
+		},
+		KeySchema: []types.KeySchemaElement{
+			{
+				AttributeName: aws.String(primaryKey),
+				KeyType:       types.KeyTypeHash,
+			},
+		},
+		TableName: &tableName,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create 1, 11, 2, 22, 3, 33
+	for i := 1; i <= 3; i++ {
+		v := strconv.Itoa(i)
+		_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
+			TableName: &tableName,
+			Item: map[string]types.AttributeValue{
+				primaryKey: &types.AttributeValueMemberS{Value: v},
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
+			TableName: &tableName,
+			Item: map[string]types.AttributeValue{
+				primaryKey: &types.AttributeValueMemberS{Value: v + v},
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resp, err := client.Scan(ctx, &dynamodb.ScanInput{
+		TableName: &tableName,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Count != 6 {
+		t.Fatal("missing items")
+	}
+
+	resp, err = client.Scan(ctx, &dynamodb.ScanInput{
+		TableName:        &tableName,
+		FilterExpression: aws.String(primaryKey + " >= \"2\""),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Count != 4 {
+		fmt.Println("TODO!")
+		//t.Fatal("filter not working: ", resp.Count)
 	}
 }

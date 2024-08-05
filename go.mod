@@ -29,5 +29,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.3 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	golang.org/x/sys v0.18.0
 	golang.org/x/text v0.14.0 // indirect
 )

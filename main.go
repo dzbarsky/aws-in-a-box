@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"log/slog"
+	"net"
 	"os"
 	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	"aws-in-a-box/arn"
 	"aws-in-a-box/http"
@@ -42,6 +47,7 @@ func versionString() string {
 
 func main() {
 	addr := flag.String("addr", "localhost:4569", "Address to run on")
+	reusePort := flag.Bool("reuse-port", false, "If true, sets the SO_REUSEPORT socket option")
 	persistDir := flag.String("persistDir", "", "Directory to persist data to. If empty, data is not persisted.")
 	logLevel := flag.String("logLevel", "debug", "debug/info/warn/error")
 
@@ -172,9 +178,30 @@ func main() {
 	}
 
 	srv := server.NewWithHandlerChain(handlerChain...)
-	srv.Addr = *addr
 
-	err := srv.ListenAndServe()
+	lc := net.ListenConfig{
+		Control: func(network, address string, conn syscall.RawConn) error {
+			if !*reusePort {
+				return nil
+			}
+
+			var setSockoptErr error
+			err := conn.Control(func(fd uintptr) {
+				setSockoptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+			})
+			if err != nil {
+				return err
+			}
+			return setSockoptErr
+		},
+	}
+
+	l, err := lc.Listen(context.Background(), "tcp", *addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = srv.Serve(l)
 	if err != nil {
 		panic(err)
 	}

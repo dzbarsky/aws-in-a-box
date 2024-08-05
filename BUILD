@@ -1,5 +1,5 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("@gazelle//:def.bzl", "gazelle")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 gazelle(name = "gazelle")
 
@@ -11,6 +11,9 @@ go_library(
     ],
     importpath = "aws-in-a-box",
     visibility = ["//visibility:private"],
+    x_defs = {
+        "aws-in-a-box.BazelSuffix": " (Bazel)",
+    },
     deps = [
         "//arn",
         "//http",
@@ -20,10 +23,8 @@ go_library(
         "//services/kms",
         "//services/s3",
         "//services/sqs",
+        "@org_golang_x_sys//unix",
     ],
-    x_defs = {
-        "aws-in-a-box.BazelSuffix": " (Bazel)"
-    },
 )
 
 go_binary(

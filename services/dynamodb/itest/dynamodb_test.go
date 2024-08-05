@@ -54,49 +54,54 @@ func TestGetItem_PartitionKey(t *testing.T) {
 	primaryKey := aws.String("pkey")
 
 	for _, primaryKeyType := range types.ScalarAttributeType("").Values() {
-		tableName := "table_" + string(primaryKeyType)
-		_, err := client.CreateTable(ctx, &dynamodb.CreateTableInput{
-			AttributeDefinitions: []types.AttributeDefinition{
-				{
-					AttributeName: primaryKey,
-					// TODO(zbarsky): ???
-					AttributeType: types.ScalarAttributeTypeS,
+		t.Run("_"+string(primaryKeyType), func(t *testing.T) {
+			tableName := "table_" + string(primaryKeyType)
+			_, err := client.CreateTable(ctx, &dynamodb.CreateTableInput{
+				AttributeDefinitions: []types.AttributeDefinition{
+					{
+						AttributeName: primaryKey,
+						AttributeType: primaryKeyType,
+					},
 				},
-			},
-			KeySchema: []types.KeySchemaElement{
-				{
-					AttributeName: primaryKey,
-					KeyType:       types.KeyTypeHash,
+				KeySchema: []types.KeySchemaElement{
+					{
+						AttributeName: primaryKey,
+						KeyType:       types.KeyTypeHash,
+					},
 				},
-			},
-			TableName: &tableName,
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
+				TableName: &tableName,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
-			TableName: &tableName,
-			Item: map[string]types.AttributeValue{
-				*primaryKey: &types.AttributeValueMemberS{
-					Value: "key",
-				},
-			},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
+			var primaryKeyValue types.AttributeValue
+			switch primaryKeyType {
+			case types.ScalarAttributeTypeS:
+				primaryKeyValue = &types.AttributeValueMemberS{Value: "key"}
+			case types.ScalarAttributeTypeN:
+				primaryKeyValue = &types.AttributeValueMemberN{Value: "key"}
+			case types.ScalarAttributeTypeB:
+				primaryKeyValue = &types.AttributeValueMemberB{Value: []byte("key")}
+			default:
+				t.Fatal("Unknown type")
+			}
 
-		_, err = client.GetItem(ctx, &dynamodb.GetItemInput{
-			TableName: &tableName,
-			Key: map[string]types.AttributeValue{
-				*primaryKey: &types.AttributeValueMemberS{
-					Value: "key",
-				},
-			},
+			_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
+				TableName: &tableName,
+				Item:      map[string]types.AttributeValue{*primaryKey: primaryKeyValue},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = client.GetItem(ctx, &dynamodb.GetItemInput{
+				TableName: &tableName,
+				Key:       map[string]types.AttributeValue{*primaryKey: primaryKeyValue},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
 	}
 }

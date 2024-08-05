@@ -19,9 +19,17 @@ type APITableDescription struct {
 	TableStatus          string
 }
 
+type APIAttributeType string
+
+const (
+	AttributeType_String  = APIAttributeType("S")
+	AttributeType_Binary  = APIAttributeType("B")
+	AttributeType_Numeric = APIAttributeType("N")
+)
+
 type APIAttributeDefinition struct {
 	AttributeName string
-	AttributeType string
+	AttributeType APIAttributeType
 }
 
 type APIKeySchemaElement struct {

@@ -47,6 +47,10 @@ func ResourceInUseException(message string) *Error {
 	return Generate400Exception("ResourceInUseException", message)
 }
 
+func ConditionalCheckFailedException(message string) *Error {
+	return Generate400Exception("ConditionalCheckFailedException", message)
+}
+
 func XXX_TODO(message string) *Error {
 	return &Error{
 		Code: 500,

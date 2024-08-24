@@ -31,10 +31,10 @@ You can also build from source with either go native tooling or with Bazel, see 
     	Enable Kinesis service (default true)
   -enableSQS
     	Enable SQS service (default true)
+  -enableS3
+      Enable S3 service (default true)
   -experimental_enableDynamoDB
     	Enable DynamoDB service (default true)
-  -experimental_enableS3
-    	Enable S3 service (default true)
   -kinesisDefaultDuration duration
     	How long to retain messages. Can be used to control memory usage. After creation, retention can be adjusted with [Increase/Decrease]StreamRetentionPeriod (default 24h0m0s)
   -kinesisInitialShardsPerStream int

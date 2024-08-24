@@ -65,7 +65,7 @@ func main() {
 
 	enableDynamoDB := flag.Bool("experimental_enableDynamoDB", true, "Enable DynamoDB service")
 
-	enableS3 := flag.Bool("experimental_enableS3", true, "Enable S3 service")
+	enableS3 := flag.Bool("enableS3", true, "Enable S3 service")
 	s3InitialBuckets := flag.String("s3InitialBuckets", "", "Buckets to create at startup. Example: bucket1,bucket2,bucket3")
 
 	enableSQS := flag.Bool("enableSQS", true, "Enable SQS service")

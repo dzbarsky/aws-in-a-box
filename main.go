@@ -12,8 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/sys/unix"
-
 	"aws-in-a-box/arn"
 	"aws-in-a-box/http"
 	"aws-in-a-box/server"
@@ -187,7 +185,7 @@ func main() {
 
 			var setSockoptErr error
 			err := conn.Control(func(fd uintptr) {
-				setSockoptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+				setSockoptErr = setSockopt(fd)
 			})
 			if err != nil {
 				return err

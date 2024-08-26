@@ -1,8 +1,3 @@
 common --enable_bzlmod
 common --experimental_output_paths=strip
 
-common --bes_results_url=https://app.buildbuddy.io/invocation/
-common --bes_backend=grpcs://remote.buildbuddy.io
-common --remote_cache=grpcs://remote.buildbuddy.io
-common --remote_download_toplevel # Helps remove network bottleneck if caching is enabled
-common --remote_timeout=3600

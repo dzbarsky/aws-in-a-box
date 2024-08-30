@@ -1,10 +1,11 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "s3",
     srcs = [
         "errors.go",
         "handler.go",
+        "persist.go",
         "s3.go",
         "types.go",
     ],
@@ -16,4 +17,10 @@ go_library(
         "@com_github_gofrs_uuid_v5//:uuid",
         "@org_golang_x_exp//maps",
     ],
+)
+
+go_test(
+    name = "s3_test",
+    srcs = ["persist_test.go"],
+    embed = [":s3"],
 )

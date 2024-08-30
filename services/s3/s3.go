@@ -44,9 +44,9 @@ type Object struct {
 }
 
 type Bucket struct {
-	objects   map[string]*Object
-	createdAt time.Time
-	TagSet    TagSet
+	Objects       map[string]*Object
+	CreatedAtUnix int64 // Not using time.Time so that it round-trips gob properly.
+	TagSet        TagSet
 }
 
 type UploadStatus int
@@ -57,7 +57,7 @@ const (
 	UploadStatusAborted
 )
 
-type multipartUpload struct {
+type MultipartUpload struct {
 	Status  UploadStatus
 	Bucket  string
 	Key     string
@@ -77,12 +77,15 @@ type S3 struct {
 	logger *slog.Logger
 
 	// We need the address to generate location URLs.
-	addr       string
-	persistDir string
+	addr string
+
+	// Persistence dirs.
+	casDir      string
+	metadataDir string
 
 	mu               sync.Mutex
 	buckets          map[string]*Bucket
-	multipartUploads map[string]*multipartUpload
+	multipartUploads map[string]*MultipartUpload
 }
 
 type Options struct {
@@ -96,26 +99,38 @@ func New(options Options) (*S3, error) {
 		options.Logger = slog.Default()
 	}
 
+	buckets := make(map[string]*Bucket)
+	multipartUploads := make(map[string]*MultipartUpload)
+
+	var metadataDir, casDir string
 	if options.PersistDir == "" {
 		var err error
-		options.PersistDir, err = os.MkdirTemp("", "aws-in-a-box-s3")
+		casDir, err = os.MkdirTemp("", "aws-in-a-box-s3")
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		options.PersistDir = filepath.Join(options.PersistDir, "s3", "cas")
-		err := os.MkdirAll(options.PersistDir, 0700)
+		metadataDir = filepath.Join(options.PersistDir, "s3")
+		casDir = filepath.Join(metadataDir, "cas")
+		err := os.MkdirAll(casDir, 0700)
 		if err != nil {
 			return nil, err
+		}
+
+		err = loadMetadata(metadataDir, buckets, multipartUploads)
+		if err != nil {
+			options.Logger.Warn(fmt.Sprintf(
+				"Could not restore persisted data: %v", err))
 		}
 	}
 
 	return &S3{
 		logger:           options.Logger,
 		addr:             options.Addr,
-		persistDir:       options.PersistDir,
-		buckets:          make(map[string]*Bucket),
-		multipartUploads: make(map[string]*multipartUpload),
+		metadataDir:      metadataDir,
+		casDir:           casDir,
+		buckets:          buckets,
+		multipartUploads: multipartUploads,
 	}, nil
 }
 
@@ -130,8 +145,13 @@ func (s *S3) CreateBucket(input CreateBucketInput) (*CreateBucketOutput, *awserr
 	}
 
 	s.buckets[input.Bucket] = &Bucket{
-		createdAt: time.Now(),
-		objects:   make(map[string]*Object),
+		CreatedAtUnix: time.Now().Unix(),
+		Objects:       make(map[string]*Object),
+	}
+
+	err := s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
 	}
 
 	return &CreateBucketOutput{
@@ -161,7 +181,7 @@ func (s *S3) ListBuckets(input ListBucketsInput) (*ListBucketsOutput, *awserrors
 	for name, b := range s.buckets {
 		resp.Buckets.Buckets = append(resp.Buckets.Buckets, ListBuckets_Bucket{
 			Name:         name,
-			CreationDate: b.createdAt.Format("2006-01-02T15:04:05+07:00"),
+			CreationDate: time.Unix(b.CreatedAtUnix, 0).Format("2006-01-02T15:04:05+07:00"),
 		})
 	}
 
@@ -178,11 +198,17 @@ func (s *S3) DeleteBucket(input DeleteBucketInput) (*Response204, *awserrors.Err
 		return nil, awserrors.XXX_TODO("bucket already exists")
 	}
 
-	if len(b.objects) != 0 {
+	if len(b.Objects) != 0 {
 		return nil, awserrors.XXX_TODO("bucket must be empty")
 	}
 
 	delete(s.buckets, input.Bucket)
+
+	err := s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
+
 	return response204, nil
 }
 
@@ -352,7 +378,7 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		return nil, NoSuchBucket(input.Bucket)
 	}
 
-	object, ok := b.objects[input.Key]
+	object, ok := b.Objects[input.Key]
 	if !ok {
 		return nil, NotFound()
 	}
@@ -415,13 +441,13 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 }
 
 func (s *S3) filepath(MD5 []byte) string {
-	return filepath.Join(s.persistDir, hex.EncodeToString(MD5))
+	return filepath.Join(s.casDir, hex.EncodeToString(MD5))
 }
 
 // drainReaderToMD5Store returns the MD5 and the number of bytes written
 func (s *S3) drainReaderToMD5Store(r io.Reader) ([]byte, int64, error) {
 	md5Writer := md5.New()
-	tempPath := filepath.Join(s.persistDir, uuid.Must(uuid.NewV4()).String())
+	tempPath := filepath.Join(s.casDir, uuid.Must(uuid.NewV4()).String())
 	n, err := atomicfile.Write(tempPath, io.TeeReader(r, md5Writer), 0666)
 	if err != nil {
 		return nil, 0, err
@@ -462,7 +488,12 @@ func (s *S3) PutObject(input PutObjectInput) (*PutObjectOutput, *awserrors.Error
 		SSECustomerAlgorithm: input.SSECustomerAlgorithm,
 		SSECustomerKey:       input.SSECustomerKey,
 	}
-	b.objects[input.Key] = object
+	b.Objects[input.Key] = object
+
+	err = s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
 
 	return &PutObjectOutput{
 		ETag:                    object.ETag,
@@ -491,7 +522,7 @@ func (s *S3) CopyObject(input CopyObjectInput) (*CopyObjectOutput, *awserrors.Er
 		return nil, NoSuchBucket(sourceBucket)
 	}
 
-	object, ok := b.objects[sourceKey]
+	object, ok := b.Objects[sourceKey]
 	if !ok {
 		return nil, awserrors.XXX_TODO("no source item: " + sourceKey)
 	}
@@ -514,7 +545,13 @@ func (s *S3) CopyObject(input CopyObjectInput) (*CopyObjectOutput, *awserrors.Er
 		return nil, NoSuchBucket(input.Bucket)
 	}
 
-	destBucket.objects[input.Key] = object
+	destBucket.Objects[input.Key] = object
+
+	err = s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
+
 	return &CopyObjectOutput{
 		// TODO: Complete guess on format
 		LastModified: time.Now().UTC().Format(time.RFC3339Nano),
@@ -537,7 +574,13 @@ func (s *S3) DeleteObject(input DeleteObjectInput) (*DeleteObjectOutput, *awserr
 		return nil, NoSuchBucket(input.Bucket)
 	}
 
-	delete(b.objects, input.Key)
+	delete(b.Objects, input.Key)
+
+	err := s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
+
 	return &DeleteObjectOutput{}, nil
 }
 
@@ -560,13 +603,19 @@ func (s *S3) DeleteObjects(input DeleteObjectsInput) (*DeleteObjectsOutput, *aws
 			continue
 		}
 
-		delete(b.objects, object.Key)
+		delete(b.Objects, object.Key)
 		if !input.Quiet {
 			output.Deleted = append(output.Deleted, DeleteObjectsDeleted{
 				Key: object.Key,
 			})
 		}
 	}
+
+	err := s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
+
 	return output, nil
 }
 
@@ -580,7 +629,7 @@ func (s *S3) GetObjectTagging(input GetObjectTaggingInput) (*GetObjectTaggingOut
 		return nil, NoSuchBucket(input.Bucket)
 	}
 
-	object, ok := b.objects[input.Key]
+	object, ok := b.Objects[input.Key]
 	if !ok {
 		return nil, NotFound()
 	}
@@ -612,7 +661,7 @@ func (s *S3) PutObjectTagging(input PutObjectTaggingInput) (*PutObjectTaggingOut
 		return nil, NoSuchBucket(input.Bucket)
 	}
 
-	object, ok := b.objects[input.Key]
+	object, ok := b.Objects[input.Key]
 	if !ok {
 		return nil, NotFound()
 	}
@@ -628,6 +677,11 @@ func (s *S3) PutObjectTagging(input PutObjectTaggingInput) (*PutObjectTaggingOut
 	}
 	object.Tagging = tagging.String()
 
+	err := s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
+
 	return &PutObjectTaggingOutput{}, nil
 }
 
@@ -641,11 +695,16 @@ func (s *S3) DeleteObjectTagging(input DeleteObjectTaggingInput) (*Response204, 
 		return nil, NoSuchBucket(input.Bucket)
 	}
 
-	object, ok := b.objects[input.Key]
+	object, ok := b.Objects[input.Key]
 	if !ok {
 		return nil, NotFound()
 	}
 	object.Tagging = ""
+
+	err := s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
 
 	return response204, nil
 }
@@ -661,7 +720,7 @@ func (s *S3) CreateMultipartUpload(input CreateMultipartUploadInput) (*CreateMul
 	}
 
 	uploadId := base64.RawURLEncoding.EncodeToString(uuid.Must(uuid.NewV4()).Bytes())
-	s.multipartUploads[uploadId] = &multipartUpload{
+	s.multipartUploads[uploadId] = &MultipartUpload{
 		Status:  UploadStatusInProgress,
 		Bucket:  input.Bucket,
 		Key:     input.Key,
@@ -674,6 +733,11 @@ func (s *S3) CreateMultipartUpload(input CreateMultipartUploadInput) (*CreateMul
 			SSEKMSKeyId:             input.SSEKMSKeyId,
 			SSEKMSEncryptionContext: input.SSEKMSEncryptionContext,
 		},
+	}
+
+	err := s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
 	}
 
 	return &CreateMultipartUploadOutput{
@@ -707,6 +771,12 @@ func (s *S3) UploadPart(input UploadPartInput) (*UploadPartOutput, *awserrors.Er
 		MD5:    MD5,
 		Size:   contentLength,
 	}
+
+	err = s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
+
 	return &UploadPartOutput{
 		ETag:                 hex.EncodeToString(MD5),
 		ServerSideEncryption: upload.Object.ServerSideEncryption,
@@ -817,8 +887,13 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 	object.ETag = etag(combinedMD5s) + "-" + strconv.Itoa(len(input.Part))
 	object.Tagging = upload.Tagging
 
-	s.buckets[input.Bucket].objects[input.Key] = &object
+	s.buckets[input.Bucket].Objects[input.Key] = &object
 	upload.Status = UploadStatusCompleted
+
+	err := s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
 
 	return &CompleteMultipartUploadOutput{
 		Bucket:               input.Bucket,
@@ -851,6 +926,12 @@ func (s *S3) AbortMultipartUpload(input AbortMultipartUploadInput) (*Response204
 	}
 
 	upload.Status = UploadStatusCompleted
+
+	err := s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
+
 	return response204, nil
 }
 
@@ -880,6 +961,11 @@ func (s *S3) PutBucketTagging(input PutBucketTaggingInput) (*PutBucketTaggingOut
 	}
 	b.TagSet = input.TagSet
 
+	err := s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
+
 	return &PutBucketTaggingOutput{}, nil
 }
 
@@ -894,6 +980,12 @@ func (s *S3) DeleteBucketTagging(input DeleteBucketTaggingInput) (*Response204, 
 	}
 
 	b.TagSet = TagSet{}
+
+	err := s.persistMetadata()
+	if err != nil {
+		return nil, awserrors.XXX_TODO(fmt.Sprintf("failed to persist: %v", err))
+	}
+
 	return response204, nil
 }
 
@@ -909,7 +1001,7 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 
 	// Gather a list of all keys in bucket, sort them.
 	var keysSorted []string
-	for key := range b.objects {
+	for key := range b.Objects {
 		if input.Prefix != nil && !strings.HasPrefix(key, *input.Prefix) {
 			continue
 		}
@@ -949,7 +1041,7 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 
 	var contents []ListObjectsV2Object
 	for _, keyToInclude := range keysToInclude {
-		object := b.objects[keyToInclude]
+		object := b.Objects[keyToInclude]
 		contents = append(contents, ListObjectsV2Object{
 			ETag: object.ETag,
 			Key:  keyToInclude,
@@ -995,5 +1087,4 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 	// the in-progress multipart uploads.
 
 	return response, nil
-
 }

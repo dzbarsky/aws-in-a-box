@@ -141,7 +141,7 @@ func (s *S3) CreateBucket(input CreateBucketInput) (*CreateBucketOutput, *awserr
 
 	_, ok := s.buckets[input.Bucket]
 	if ok {
-		return nil, awserrors.XXX_TODO("bucket already exists")
+		return nil, BucketAlreadyExists()
 	}
 
 	s.buckets[input.Bucket] = &Bucket{
@@ -194,12 +194,12 @@ func (s *S3) DeleteBucket(input DeleteBucketInput) (*Response204, *awserrors.Err
 	defer s.mu.Unlock()
 
 	b, ok := s.buckets[input.Bucket]
-	if ok {
-		return nil, awserrors.XXX_TODO("bucket already exists")
+	if !ok {
+		return nil, NoSuchBucket(input.Bucket)
 	}
 
 	if len(b.Objects) != 0 {
-		return nil, awserrors.XXX_TODO("bucket must be empty")
+		return nil, BucketNotEmpty(input.Bucket)
 	}
 
 	delete(s.buckets, input.Bucket)
@@ -463,7 +463,6 @@ func (s *S3) drainReaderToMD5Store(r io.Reader) ([]byte, int64, error) {
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
 func (s *S3) PutObject(input PutObjectInput) (*PutObjectOutput, *awserrors.Error) {
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -491,7 +490,7 @@ func (s *S3) PutObject(input PutObjectInput) (*PutObjectOutput, *awserrors.Error
 	}
 
 	if input.IfNoneMatch == "*" && b.Objects[input.Key] != nil {
-		return nil, VersionConflict(input.Key)
+		return nil, PreconditionFailed()
 	}
 	b.Objects[input.Key] = object
 
@@ -855,11 +854,11 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 
 	upload, ok := s.multipartUploads[input.UploadId]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no upload")
+		return nil, NoSuchUpload()
 	}
 
 	if upload.Status != UploadStatusInProgress {
-		return nil, awserrors.XXX_TODO("bad upload status")
+		return nil, NoSuchUpload()
 	}
 
 	if upload.Bucket != input.Bucket || upload.Key != input.Key {
@@ -867,7 +866,7 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 	}
 
 	if input.IfNoneMatch == "*" && s.buckets[input.Bucket].Objects[input.Key] != nil {
-		return nil, VersionConflict(input.Key)
+		return nil, PreconditionFailed()
 	}
 
 	slices.SortFunc(input.Part, func(a, b APIPart) int {
@@ -881,11 +880,11 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 	for _, partSpec := range input.Part {
 		part, ok := upload.Parts[partSpec.PartNumber]
 		if !ok {
-			return nil, awserrors.XXX_TODO("missing part")
+			return nil, InvalidPart()
 		}
 
 		if partSpec.ETag != hex.EncodeToString(part.MD5) {
-			return nil, awserrors.XXX_TODO("wrong part")
+			return nil, InvalidPart()
 		}
 
 		combinedMD5s = append(combinedMD5s, part.MD5...)
@@ -921,12 +920,12 @@ func (s *S3) AbortMultipartUpload(input AbortMultipartUploadInput) (*Response204
 
 	upload, ok := s.multipartUploads[input.UploadId]
 	if !ok {
-		return nil, awserrors.XXX_TODO("no upload")
+		return nil, NoSuchUpload()
 	}
 
 	if upload.Status == UploadStatusCompleted {
 		// TODO: check this behavior
-		return nil, awserrors.XXX_TODO("bad upload status")
+		return nil, NoSuchUpload()
 	}
 
 	if upload.Bucket != input.Bucket || upload.Key != input.Key {

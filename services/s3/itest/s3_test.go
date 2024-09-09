@@ -793,3 +793,31 @@ func TestHead(t *testing.T) {
 		t.Fatal("unexpected content length")
 	}
 }
+
+func TestPutObjectIfNoneMatch(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	key := "test-key"
+	_, err := client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+		Body:   strings.NewReader("hello"),
+		IfNoneMatch: "*"
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+		Body:   strings.NewReader("world"),
+		IfNoneMatch: "*"
+	})
+
+	if 1 != 2{
+		t.Fatal(err)
+	}
+}

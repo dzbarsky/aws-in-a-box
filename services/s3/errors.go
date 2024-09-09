@@ -21,3 +21,14 @@ func NoSuchBucket(bucket string) *awserrors.Error {
 		},
 	}
 }
+
+func VersionConflict(key string) *awserrors.Error {
+	return &awserrors.Error{
+		Code: 409,
+		Body: awserrors.ErrorBody{
+			Type:          "VersionConflict",
+			Message:       "An object already exists with this key. Conditional PutObject failed",
+			LegacyMessage: "An object already exists with this key. Conditional PutObject failed",
+		},
+	}
+}

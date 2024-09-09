@@ -463,6 +463,7 @@ func (s *S3) drainReaderToMD5Store(r io.Reader) ([]byte, int64, error) {
 
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
 func (s *S3) PutObject(input PutObjectInput) (*PutObjectOutput, *awserrors.Error) {
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -487,6 +488,10 @@ func (s *S3) PutObject(input PutObjectInput) (*PutObjectOutput, *awserrors.Error
 		SSEKMSKeyId:          input.SSEKMSKeyId,
 		SSECustomerAlgorithm: input.SSECustomerAlgorithm,
 		SSECustomerKey:       input.SSECustomerKey,
+	}
+
+	if input.IfNoneMatch == "*" && b.Objects[input.Key] != nil {
+		return nil, VersionConflict(input.Key)
 	}
 	b.Objects[input.Key] = object
 
@@ -859,6 +864,10 @@ func (s *S3) CompleteMultipartUpload(input CompleteMultipartUploadInput) (*Compl
 
 	if upload.Bucket != input.Bucket || upload.Key != input.Key {
 		return nil, awserrors.XXX_TODO("wrong upload")
+	}
+
+	if input.IfNoneMatch == "*" && s.buckets[input.Bucket].Objects[input.Key] != nil {
+		return nil, VersionConflict(input.Key)
 	}
 
 	slices.SortFunc(input.Part, func(a, b APIPart) int {

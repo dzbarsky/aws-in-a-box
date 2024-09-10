@@ -793,3 +793,129 @@ func TestHead(t *testing.T) {
 		t.Fatal("unexpected content length")
 	}
 }
+
+func TestPutObjectIfNoneMatch(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	ifNoneMatchWildcard := "*"
+	key := "test-key"
+	_, err := client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      &bucket,
+		Key:         &key,
+		Body:        strings.NewReader("hello"),
+		IfNoneMatch: &ifNoneMatchWildcard,
+	})
+	// First put should succeed
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Second put must fail since an object already exists with that key
+	_, expectedErr := client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      &bucket,
+		Key:         &key,
+		Body:        strings.NewReader("world"),
+		IfNoneMatch: &ifNoneMatchWildcard,
+	})
+
+	if expectedErr == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestPutObjectWithoutIfNoneMatchDoesNotFail(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	key := "test-key"
+	_, err := client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+		Body:   strings.NewReader("hello"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+		Body:   strings.NewReader("world"),
+	})
+
+	// Expect both puts to succeed since IfNoneMatch is not included
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMultipartUploadWithIfNoneMatch(t *testing.T) {
+	ctx := context.Background()
+	client, srv := makeClientServerPair()
+	defer srv.Shutdown(ctx)
+
+	kmsKey := "custom-kms-key"
+	key := "test-key"
+	kmsContext := "foo=bar"
+
+	// Create two multipart uploads for test-key and upload some parts to it.
+	// First one should succeed, second one should fail.
+	for i := 0; i < 2; i++ {
+		upload, err := client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
+			Bucket:                  &bucket,
+			Key:                     &key,
+			ServerSideEncryption:    types.ServerSideEncryptionAwsKms,
+			SSEKMSKeyId:             &kmsKey,
+			SSEKMSEncryptionContext: &kmsContext,
+			Tagging:                 aws.String("foo=bar"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var parts []types.CompletedPart
+		for i, s := range []string{"hello", " world"} {
+			output, err := client.UploadPart(ctx, &s3.UploadPartInput{
+				PartNumber: aws.Int32(int32(i)),
+				Bucket:     &bucket,
+				Key:        &key,
+				UploadId:   upload.UploadId,
+				Body:       strings.NewReader(s),
+			})
+			if output.ServerSideEncryption != types.ServerSideEncryptionAwsKms {
+				t.Fatal("missing SSE header")
+			}
+			if *output.SSEKMSKeyId != kmsKey {
+				t.Fatal("missing KMS key header: ", *output.SSEKMSKeyId)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			parts = append(parts, types.CompletedPart{
+				ETag:       output.ETag,
+				PartNumber: aws.Int32(int32(i)),
+			})
+		}
+
+		_, err = client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
+			Bucket:   &bucket,
+			Key:      &key,
+			UploadId: upload.UploadId,
+			MultipartUpload: &types.CompletedMultipartUpload{
+				Parts: parts,
+			},
+			IfNoneMatch: aws.String("*"),
+		})
+
+		if i == 0 && err != nil {
+			t.Fatal(err)
+		}
+
+		if i == 1 && err == nil {
+			t.Fatal("Should fail")
+		}
+	}
+}

@@ -139,6 +139,7 @@ type PutObjectInput struct {
 	SSECustomerKey   string `s3:"header:x-amz-server-side-encryption-customer-key"`
 	Tagging          string `s3:"header:x-amz-tagging"`
 	TaggingDirective string `s3:"header:x-amz-tagging-directive"`
+	IfNoneMatch      string `s3:"header:If-None-Match"`
 }
 
 type PutObjectOutput struct {
@@ -240,11 +241,12 @@ type AbortMultipartUploadInput struct {
 }
 
 type CompleteMultipartUploadInput struct {
-	XMLName  xml.Name `xml:"CompleteMultipartUpload"`
-	UploadId string   `s3:"query:uploadId"`
-	Bucket   string   `s3:"bucket"`
-	Key      string   `s3:"key"`
-	Part     []APIPart
+	XMLName     xml.Name `xml:"CompleteMultipartUpload"`
+	UploadId    string   `s3:"query:uploadId"`
+	Bucket      string   `s3:"bucket"`
+	Key         string   `s3:"key"`
+	Part        []APIPart
+	IfNoneMatch string `s3:"header:If-None-Match"`
 }
 
 type APIPart struct {

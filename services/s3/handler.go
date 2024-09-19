@@ -74,6 +74,7 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 					ServerSideEncryption: r.Form.Get("x-amz-server-side-encryption"),
 					ContentType:          r.Form.Get("Content-Type"),
 					Data:                 f,
+					Metadata:             extractMetadata(r.Header),
 				}
 				logger.Debug("Parsed input", "method", "PutObject", "input", input)
 				output, awserr := s3.PutObject(input)
@@ -128,7 +129,11 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 				if r.Header.Get("x-amz-copy-source") != "" {
 					handle(w, r, logger.With("method", "CopyObject"), s3.CopyObject)
 				} else {
-					handle(w, r, logger.With("method", "PutObject"), s3.PutObject)
+					handle(w, r, logger.With("method", "PutObject"),
+						func(input PutObjectInput) (*PutObjectOutput, *awserrors.Error) {
+							input.Metadata = extractMetadata(r.Header)
+							return s3.PutObject(input)
+						})
 				}
 			case http.MethodDelete:
 				handle(w, r, logger.With("method", "DeleteObject"), s3.DeleteObject)
@@ -138,6 +143,16 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 		}
 		return true
 	}
+}
+
+func extractMetadata(header http.Header) map[string]string {
+	metadata := make(map[string]string)
+	for k := range header {
+		if strings.HasPrefix(strings.ToLower(k), "x-amz-meta-") {
+			metadata[k] = header.Get(k)
+		}
+	}
+	return metadata
 }
 
 func handle[Input any, Output any](
@@ -238,13 +253,18 @@ func marshal(w http.ResponseWriter, output any, awserr *awserrors.Error) {
 	v := reflect.ValueOf(output).Elem()
 	ty := v.Type()
 	for i := 0; i < ty.NumField(); i++ {
-		tag := ty.Field(i).Tag.Get("s3")
+		field := ty.Field(i)
+		tag := field.Tag.Get("s3")
 		if tag == "body" {
 			reflect.ValueOf(&body).Elem().Set(v.Field(i))
 		} else if tag == "http-status" {
 			httpStatus = int(v.Field(i).Int())
+		} else if tag == "metadata-headers" {
+			for _, mapKey := range v.Field(i).MapKeys() {
+				mapValue := v.Field(i).MapIndex(mapKey)
+				w.Header().Set(mapKey.String(), mapValue.String())
+			}
 		} else if h, ok := strings.CutPrefix(tag, "header:"); ok {
-			field := ty.Field(i)
 			switch field.Type.Kind() {
 			case reflect.Int, reflect.Int64:
 				w.Header().Set(h, strconv.Itoa(int(v.Field(i).Int())))

@@ -30,6 +30,8 @@ type Object struct {
 	MD5  []byte
 	ETag string
 
+	Metadata map[string]string
+
 	ContentType   string
 	ContentLength int64
 	Parts         []Part
@@ -392,6 +394,7 @@ func (s *S3) getObject(input GetObjectInput, includeBody bool) (*GetObjectOutput
 		SSECustomerAlgorithm: object.SSECustomerAlgorithm,
 		SSECustomerKey:       object.SSECustomerKey,
 		SSEKMSKeyId:          object.SSEKMSKeyId,
+		Metadata:             object.Metadata,
 		// Bafflingly, This format is expected here.
 		LastModified: time.Now().UTC().Format(timeFormat),
 		HttpStatus:   http.StatusOK,
@@ -482,6 +485,7 @@ func (s *S3) PutObject(input PutObjectInput) (*PutObjectOutput, *awserrors.Error
 		ContentType:   input.ContentType,
 		ContentLength: contentLength,
 
+		Metadata:             input.Metadata,
 		Tagging:              input.Tagging,
 		ServerSideEncryption: input.ServerSideEncryption,
 		SSEKMSKeyId:          input.SSEKMSKeyId,

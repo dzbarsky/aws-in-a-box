@@ -118,6 +118,8 @@ type GetObjectOutput struct {
 	SSECustomerAlgorithm string `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
 	SSECustomerKey       string `s3:"header:x-amz-server-side-encryption-customer-key"`
 	LastModified         string `s3:"header:Last-Modified"`
+	// Note: Metadata is handled specially
+	Metadata map[string]string `s3:"metadata-headers"`
 	// TODO: md5
 	SSEKMSKeyId string `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
 	//PartsCount    int    `s3:"header:x-amz-mp-parts-count"`
@@ -135,6 +137,8 @@ type PutObjectInput struct {
 	SSEKMSKeyId             string    `s3:"header:x-amz-server-side-encryption-aws-kms-key-id"`
 	SSEKMSEncryptionContext string    `s3:"header:x-amz-server-side-encryption-context"`
 	SSECustomerAlgorithm    string    `s3:"header:x-amz-server-side-encryption-customer-algorithm"`
+	// Note: Metadata is handled specially
+	Metadata map[string]string
 	// TODO: md5 check
 	SSECustomerKey   string `s3:"header:x-amz-server-side-encryption-customer-key"`
 	Tagging          string `s3:"header:x-amz-tagging"`

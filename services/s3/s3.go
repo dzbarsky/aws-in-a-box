@@ -516,11 +516,15 @@ func (s *S3) CopyObject(input CopyObjectInput) (*CopyObjectOutput, *awserrors.Er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// "bucket/path/to/key"
+	// "bucket/path/to/key", maybe with leading slash.
 	copySource, err := url.PathUnescape(input.CopySource)
 	if err != nil {
 		return nil, awserrors.XXX_TODO(err.Error())
 	}
+	if copySource[0] == '/' {
+		copySource = copySource[1:]
+	}
+
 	parts := strings.SplitN(copySource, "/", 2)
 	sourceBucket := parts[0]
 	sourceKey := parts[1]

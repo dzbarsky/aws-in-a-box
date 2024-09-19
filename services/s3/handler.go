@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"reflect"
@@ -145,11 +146,24 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 	}
 }
 
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 128 {
+			return false
+		}
+	}
+	return true
+}
+
 func extractMetadata(header http.Header) map[string]string {
 	metadata := make(map[string]string)
 	for k := range header {
 		if strings.HasPrefix(strings.ToLower(k), "x-amz-meta-") {
-			metadata[k] = header.Get(k)
+			v := header.Get(k)
+			if !isASCII(v) {
+				v = mime.BEncoding.Encode("utf-8", v)
+			}
+			metadata[k] = v
 		}
 	}
 	return metadata

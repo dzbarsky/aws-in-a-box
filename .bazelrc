@@ -1,3 +1,3 @@
 common --enable_bzlmod
 common --experimental_output_paths=strip
-
+common --test_output=errors

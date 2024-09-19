@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -24,17 +25,22 @@ import (
 var bucket = "test-bucket"
 
 func makeClientServerPair() (*s3.Client, *http.Server) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelWarn,
+	}))
+
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		panic(err)
 	}
 	impl, err := s3Impl.New(s3Impl.Options{
-		Addr: listener.Addr().String(),
+		Addr:   listener.Addr().String(),
+		Logger: logger,
 	})
 	if err != nil {
 		panic(err)
 	}
-	srv := server.NewWithHandlerChain(s3Impl.NewHandler(slog.Default(), impl))
+	srv := server.NewWithHandlerChain(s3Impl.NewHandler(logger, impl))
 	go srv.Serve(listener)
 
 	client := s3.New(s3.Options{

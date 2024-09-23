@@ -1035,8 +1035,15 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 	continuationToken := ""
 	var keysToInclude []string
 	for _, key := range keysSorted {
-		if input.Delimiter != nil && strings.Contains(key, *input.Delimiter) {
-			continue
+		if input.Delimiter != nil {
+			keyWithoutPrefix := key
+			if input.Prefix != nil {
+				keyWithoutPrefix = key[len(*input.Prefix):]
+			}
+
+			if strings.Contains(keyWithoutPrefix, *input.Delimiter) {
+				continue
+			}
 		}
 
 		if len(keysToInclude) >= maxKeys {
@@ -1085,7 +1092,7 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 		commonPrefixes := make(map[string]struct{})
 		for _, key := range keysSorted {
 			if input.Prefix != nil {
-				key, _ = strings.CutPrefix(key, *input.Prefix)
+				key = key[len(*input.Prefix):]
 			}
 			i := strings.Index(key, *input.Delimiter)
 			if i != -1 {

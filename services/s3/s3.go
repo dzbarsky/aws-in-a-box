@@ -1084,6 +1084,9 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 	if input.Delimiter != nil {
 		commonPrefixes := make(map[string]struct{})
 		for _, key := range keysSorted {
+			if input.Prefix != nil {
+				key, _ = strings.CutPrefix(key, *input.Prefix)
+			}
 			i := strings.Index(key, *input.Delimiter)
 			if i != -1 {
 				commonPrefixes[key[:i+len(*input.Delimiter)]] = struct{}{}

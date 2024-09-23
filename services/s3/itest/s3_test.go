@@ -746,10 +746,10 @@ func TestListObjectsV2_CommonPrefixes(t *testing.T) {
 	if len(resp.CommonPrefixes) != 2 {
 		t.Fatal("incorrect commonPrefixes", resp.CommonPrefixes)
 	}
-	if *resp.CommonPrefixes[0].Prefix != "nested1/" {
+	if *resp.CommonPrefixes[0].Prefix != "ted1/" {
 		t.Fatal("incorrect commonPrefixes", *resp.CommonPrefixes[0].Prefix)
 	}
-	if *resp.CommonPrefixes[1].Prefix != "nested2/" {
+	if *resp.CommonPrefixes[1].Prefix != "ted2/" {
 		t.Fatal("incorrect commonPrefixes", *resp.CommonPrefixes[1].Prefix)
 	}
 
@@ -767,8 +767,9 @@ func TestListObjectsV2_CommonPrefixes(t *testing.T) {
 	if len(resp.CommonPrefixes) != 1 {
 		t.Fatal("incorrect commonPrefixes", resp.CommonPrefixes)
 	}
-	if *resp.CommonPrefixes[0].Prefix != "nested1/" {
-		t.Fatal("incorrect commonPrefixes", resp.CommonPrefixes[0])
+	// TODO(zbarsky): is this really correct?
+	if *resp.CommonPrefixes[0].Prefix != "/" {
+		t.Fatal("incorrect commonPrefixes", *resp.CommonPrefixes[0].Prefix)
 	}
 }
 

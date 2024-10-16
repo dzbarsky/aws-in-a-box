@@ -1052,7 +1052,7 @@ func (s *S3) ListObjectsV2(input ListObjectsV2Input) (*ListObjectsV2Output, *aws
 			break
 		}
 
-		if input.StartAfter != nil && key < *input.StartAfter {
+		if input.StartAfter != nil && key <= *input.StartAfter {
 			continue
 		}
 

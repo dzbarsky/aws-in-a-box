@@ -614,15 +614,15 @@ func TestListObjectsV2(t *testing.T) {
 		t.Fatal("not 4 contents", resp.Contents)
 	}
 	// All of the contents should be in sorted order, and should be after "14"
-	if *resp.Contents[0].Key != "14" {
-		t.Fatal("should have found 14", resp.Contents[0])
+	if *resp.Contents[0].Key != "15" {
+		t.Fatal("should have found 15", resp.Contents[0])
 	}
-	if *resp.Contents[1].Key != "15" {
-		t.Fatal("should have found 15", resp.Contents[1])
+	if *resp.Contents[1].Key != "16" {
+		t.Fatal("should have found 16", resp.Contents[1])
 	}
 	// It should give us a reasonable continuation token.
-	if resp.NextContinuationToken == nil || *resp.NextContinuationToken != "16" {
-		t.Fatal("continuation token should be 16", resp.ContinuationToken)
+	if resp.NextContinuationToken == nil || *resp.NextContinuationToken != "17" {
+		t.Fatal("continuation token should be 17", resp.ContinuationToken)
 	}
 
 	// It should respect Prefix

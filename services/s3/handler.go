@@ -30,7 +30,7 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 				case http.MethodDelete:
 					handle(w, r, logger.With("method", "DeleteBucketTagging"), s3.DeleteBucketTagging)
 				default:
-					panic("Unhandled method")
+					panic("Unhandled method: " + r.Method)
 				}
 				return true
 			} else if r.URL.Query().Has("delete") {
@@ -38,7 +38,7 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 				case http.MethodPost:
 					handle(w, r, logger.With("method", "DeleteObjects"), s3.DeleteObjects)
 				default:
-					panic("Unhandled method")
+					panic("Unhandled method: " + r.Method)
 				}
 				return true
 			} else if r.URL.Query().Get("list-type") == "2" {
@@ -46,7 +46,7 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 				case http.MethodGet:
 					handle(w, r, logger.With("method", "ListObjectsV2"), s3.ListObjectsV2)
 				default:
-					panic("Unhandled method")
+					panic("Unhandled method: " + r.Method)
 				}
 				return true
 			}
@@ -82,7 +82,7 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 				logger.Debug("Got output", "method", "PutObject", "output", output, "error", awserr)
 				marshal(w, output, awserr)
 			default:
-				panic("Unhandled method")
+				panic("Unhandled method: " + r.Method)
 			}
 		}
 		if len(parts) == 2 {
@@ -95,7 +95,7 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 				case http.MethodDelete:
 					handle(w, r, logger.With("method", "DeleteObjectTagging"), s3.DeleteObjectTagging)
 				default:
-					panic("Unhandled method")
+					panic("Unhandled method: " + r.Method)
 				}
 				return true
 			} else if r.URL.Query().Has("uploads") {
@@ -103,7 +103,7 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 				case http.MethodPost:
 					handle(w, r, logger.With("method", "CreateMultipartUpload"), s3.CreateMultipartUpload)
 				default:
-					panic("Unhandled method")
+					panic("Unhandled method: " + r.Method)
 				}
 				return true
 			} else if r.URL.Query().Has("uploadId") {
@@ -117,7 +117,7 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 				case http.MethodGet:
 					handle(w, r, logger.With("method", "ListParts"), s3.ListParts)
 				default:
-					panic("Unhandled method")
+					panic("Unhandled method: " + r.Method)
 				}
 				return true
 			}
@@ -139,7 +139,7 @@ func NewHandler(logger *slog.Logger, s3 *S3) func(w http.ResponseWriter, r *http
 			case http.MethodDelete:
 				handle(w, r, logger.With("method", "DeleteObject"), s3.DeleteObject)
 			default:
-				panic("Unhandled method")
+				panic("Unhandled method: " + r.Method)
 			}
 		}
 		return true

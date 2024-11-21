@@ -38,6 +38,17 @@ func HandlerFuncFromRegistry(logger *slog.Logger, registry map[string]http.Handl
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return true
 		}
+
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Headers", "x-amz-checksum-sha256")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, POST")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Expose-Headers", "ETag")
+		w.Header().Set("Access-Control-Max-Age", "3000")
+
+		if r.Method == "OPTIONS" {
+			return true
+		}
 		r.Body = io.NopCloser(bytes.NewBuffer(buf))
 
 		// The target endpoint is specified in the `X-Amz-Target` header.

@@ -26,7 +26,7 @@ You can also build from source with either go native tooling or with Bazel, see 
   -reuse-port
       If set, will apply the SO_REUSEPORT socket option on Darwin/Linux platforms.
   -enableKMS
-    	Enable Kinesis service (default true)
+    	Enable KMS service (default true)
   -enableKinesis
     	Enable Kinesis service (default true)
   -enableSQS

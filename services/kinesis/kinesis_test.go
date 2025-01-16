@@ -160,7 +160,7 @@ func TestGetShardIterator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 2; i++ {
 		_, err := k.PutRecord(PutRecordInput{
 			StreamName:   streamName,
 			PartitionKey: "key",
@@ -170,6 +170,19 @@ func TestGetShardIterator(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+    putRecordsInput := PutRecordsInput{
+        StreamName: streamName,
+    }
+    for i := 2; i < 5; i++ {
+        putRecordsInput.Records = append(putRecordsInput.Records, PutRecordsRequestEntry{
+            PartitionKey: "key",
+            Data:         strconv.Itoa(i),
+        })
+    }
+    _, err := k.PutRecords(putRecordsInput)
+    if err != nil {
+        t.Fatal(err)
+    }
 
 	shardsOutput, err := k.ListShards(ListShardsInput{
 		StreamName: streamName,

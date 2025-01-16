@@ -22,6 +22,7 @@ func (k *Kinesis) RegisterHTTPHandlers(logger *slog.Logger, methodRegistry http.
 	http.Register(logger, methodRegistry, service, "ListShards", k.ListShards)
 	http.Register(logger, methodRegistry, service, "ListTagsForStream", k.ListTagsForStream)
 	http.Register(logger, methodRegistry, service, "PutRecord", k.PutRecord)
+	http.Register(logger, methodRegistry, service, "PutRecords", k.PutRecords)
 	http.Register(logger, methodRegistry, service, "RegisterStreamConsumer", k.RegisterStreamConsumer)
 	http.Register(logger, methodRegistry, service, "RemoveTagsFromStream", k.RemoveTagsFromStream)
 	http.RegisterOutputStream(logger, methodRegistry, service, "SubscribeToShard", k.SubscribeToShard)

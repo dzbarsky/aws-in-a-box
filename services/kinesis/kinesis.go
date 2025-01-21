@@ -306,6 +306,27 @@ func (k *Kinesis) PutRecord(input PutRecordInput) (*PutRecordOutput, *awserrors.
 	panic("Could not find shard for record?")
 }
 
+// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecords.html
+func (k *Kinesis) PutRecords(input PutRecordsInput) (*PutRecordsOutput, *awserrors.Error) {
+    putRecordsOutput := &PutRecordsOutput{}
+    for _, record := range input.Records {
+        putRecordOutput, err := k.PutRecord(PutRecordInput{
+            StreamName: input.StreamName,
+            Data: record.Data,
+            PartitionKey: record.PartitionKey,
+            ExplicitHashKey: record.ExplicitHashKey,
+        })
+        if err != nil {
+            return nil, err
+        }
+        putRecordsOutput.Records = append(putRecordsOutput.Records, PutRecordsOutputRecord{
+            SequenceNumber: putRecordOutput.SequenceNumber,
+            ShardId: putRecordOutput.ShardId,
+        })
+    }
+    return putRecordsOutput, nil
+}
+
 func (k *Kinesis) lockedGetShard(streamName, shardId string) (*Shard, *awserrors.Error) {
 	stream, ok := k.streams[streamName]
 	if !ok {

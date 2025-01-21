@@ -30,6 +30,27 @@ type PutRecordOutput struct {
 	SequenceNumber string
 }
 
+type PutRecordsInputRecord struct {
+	PartitionKey string
+	Data         string
+	ExplicitHashKey string
+}
+
+type PutRecordsInput struct {
+	StreamName   string
+	StreamARN    string
+    Records      []PutRecordsInputRecord
+}
+
+type PutRecordsOutputRecord struct {
+	ShardId        string
+	SequenceNumber string
+}
+
+type PutRecordsOutput struct {
+    Records        []PutRecordsOutputRecord
+}
+
 type GetShardIteratorInput struct {
 	ShardId                string
 	ShardIteratorType      string

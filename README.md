@@ -97,7 +97,7 @@ There is no persistence for Kinesis data.
 | ListTagsForStream             | ✅ Supported    |                                           |
 | MergeShards                   | ❌ Unsupported  | No support for merging/splitting yet.     |
 | PutRecord                     | ✅ Supported    |                                           |
-| PutRecords                    | ❌ Unsupported  | Use PutRecord for single records instead. |
+| PutRecords                    | ✅ Supported    |                                           |
 | RegisterStreamConsumer        | ✅ Supported    |                                           |
 | RemoveTagsFromStream          | ✅ Supported    |                                           |
 | SplitShard                    | ❌ Unsupported  | No support for merging/splitting yet.     |

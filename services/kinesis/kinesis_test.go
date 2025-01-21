@@ -174,12 +174,12 @@ func TestGetShardIterator(t *testing.T) {
 		StreamName: streamName,
 	}
 	for i := 2; i < 5; i++ {
-		putRecordsInput.Records = append(putRecordsInput.Records, PutRecordsRequestEntry{
+		putRecordsInput.Records = append(putRecordsInput.Records, PutRecordsInputRecord{
 			PartitionKey: "key",
 			Data:         strconv.Itoa(i),
 		})
 	}
-	_, err := k.PutRecords(putRecordsInput)
+	_, err = k.PutRecords(putRecordsInput)
 	if err != nil {
 		t.Fatal(err)
 	}

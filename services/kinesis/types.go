@@ -42,13 +42,8 @@ type PutRecordsInput struct {
 	Records    []PutRecordsInputRecord
 }
 
-type PutRecordsOutputRecord struct {
-	ShardId        string
-	SequenceNumber string
-}
-
 type PutRecordsOutput struct {
-	Records []PutRecordsOutputRecord
+	Records []PutRecordOutput
 }
 
 type GetShardIteratorInput struct {

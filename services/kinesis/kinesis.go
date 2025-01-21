@@ -319,10 +319,7 @@ func (k *Kinesis) PutRecords(input PutRecordsInput) (*PutRecordsOutput, *awserro
 		if err != nil {
 			return nil, err
 		}
-		putRecordsOutput.Records = append(putRecordsOutput.Records, PutRecordsOutputRecord{
-			SequenceNumber: putRecordOutput.SequenceNumber,
-			ShardId:        putRecordOutput.ShardId,
-		})
+		putRecordsOutput.Records = append(putRecordsOutput.Records, *putRecordOutput)
 	}
 	return putRecordsOutput, nil
 }

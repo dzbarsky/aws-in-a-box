@@ -31,15 +31,15 @@ type PutRecordOutput struct {
 }
 
 type PutRecordsInputRecord struct {
-	PartitionKey string
-	Data         string
+	PartitionKey    string
+	Data            string
 	ExplicitHashKey string
 }
 
 type PutRecordsInput struct {
-	StreamName   string
-	StreamARN    string
-    Records      []PutRecordsInputRecord
+	StreamName string
+	StreamARN  string
+	Records    []PutRecordsInputRecord
 }
 
 type PutRecordsOutputRecord struct {
@@ -48,7 +48,7 @@ type PutRecordsOutputRecord struct {
 }
 
 type PutRecordsOutput struct {
-    Records        []PutRecordsOutputRecord
+	Records []PutRecordsOutputRecord
 }
 
 type GetShardIteratorInput struct {
